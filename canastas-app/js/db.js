@@ -1,222 +1,180 @@
 /**
- * db.js - Data layer for Control de Canastas PWA
- * Uses localStorage for persistence
+ * db.js - Data layer usando Supabase
+ * Control de Canastas PWA
  */
 
+// ─── Supabase config ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://oghprxgonszqtoslreod.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9naHByeGdvbnN6cXRvc2xyZW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MzE4NjYsImV4cCI6MjEwMDIwNzg2Nn0.tXmRLkAXjXl2w2mRhm8IYgkmBm5qfoUtijLT6Mjf2j4';
+
 const DB = (() => {
-  const KEYS = {
-    AUXILIARES: 'canastas_auxiliares',
-    MOVIMIENTOS: 'canastas_movimientos',
-    ESTADO: 'canastas_estado',
-    CONFIG: 'canastas_config',
-    MOV_COUNTER: 'canastas_mov_counter',
+
+  // ─── HTTP helper (sin librería externa, fetch nativo) ──────────────────────
+  const BASE = SUPABASE_URL + '/rest/v1';
+  const HEADERS = {
+    'apikey':        SUPABASE_ANON,
+    'Authorization': 'Bearer ' + SUPABASE_ANON,
+    'Content-Type':  'application/json',
+    'Prefer':        'return=representation',
   };
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
+  async function api(method, path, body = null, extraHeaders = {}) {
+    const opts = {
+      method,
+      headers: { ...HEADERS, ...extraHeaders },
+    };
+    if (body !== null) opts.body = JSON.stringify(body);
+    const res = await fetch(BASE + path, opts);
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = text;
+      try { msg = JSON.parse(text).message || text; } catch {}
+      throw new Error(msg);
+    }
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return text; }
+  }
 
-  function load(key) {
+  function GET(path)         { return api('GET',    path); }
+  function POST(path, body)  { return api('POST',   path, body); }
+  function PATCH(path, body) { return api('PATCH',  path, body, { Prefer: 'return=representation' }); }
+
+  // ─── Cache local mínimo (evita queries innecesarios) ──────────────────────
+  let _auxiliaresCache = null;
+  let _estadoCache     = null;
+
+  function invalidateCache() {
+    _auxiliaresCache = null;
+    _estadoCache     = null;
+  }
+
+  // ─── Inicialización ────────────────────────────────────────────────────────
+  async function init() {
+    // Solo verifica conexión; las filas base ya existen por el SQL de setup
     try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
+      await getEstado();
     } catch (e) {
-      console.error('DB.load error', key, e);
-      return null;
+      console.error('DB.init error:', e);
     }
   }
 
-  function save(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error('DB.save error', key, e);
+  // ─── Auxiliares ───────────────────────────────────────────────────────────
+
+  async function getAuxiliares(soloActivos = false) {
+    if (_auxiliaresCache) {
+      return soloActivos ? _auxiliaresCache.filter(a => a.activo) : _auxiliaresCache;
     }
+    const data = await GET('/auxiliares?order=nombre.asc');
+    _auxiliaresCache = data || [];
+    return soloActivos ? _auxiliaresCache.filter(a => a.activo) : _auxiliaresCache;
   }
 
-  function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  async function getAuxiliarById(id) {
+    const list = await getAuxiliares();
+    return list.find(a => a.id === id) || null;
   }
 
-  function nextMovCounter() {
-    let counter = load(KEYS.MOV_COUNTER) || 0;
-    counter += 1;
-    save(KEYS.MOV_COUNTER, counter);
-    return counter;
+  async function addAuxiliar(nombre, cedula) {
+    const data = await POST('/auxiliares', {
+      nombre: nombre.trim(),
+      cedula: cedula.trim(),
+      activo: true,
+    });
+    invalidateCache();
+    return Array.isArray(data) ? data[0] : data;
   }
 
-  function generateRef() {
-    const year = new Date().getFullYear();
-    const num = String(nextMovCounter()).padStart(4, '0');
-    return `MOV-${year}-${num}`;
+  async function updateAuxiliar(id, campos) {
+    const data = await PATCH(`/auxiliares?id=eq.${id}`, campos);
+    invalidateCache();
+    return Array.isArray(data) ? data[0] : data;
   }
 
-  // ─── Seed / Init ────────────────────────────────────────────────────────────
-
-  function init() {
-    if (!load(KEYS.AUXILIARES)) {
-      const auxiliares = [
-        { id: 'aux1', nombre: 'Carlos Gómez',  cedula: '12345678', activo: true },
-        { id: 'aux2', nombre: 'Ana Martínez',  cedula: '87654321', activo: true },
-        { id: 'aux3', nombre: 'Luis Herrera',  cedula: '11223344', activo: true },
-      ];
-      save(KEYS.AUXILIARES, auxiliares);
-    }
-
-    if (!load(KEYS.ESTADO)) {
-      const estado = {
-        canastas_en_bodega: 100,
-        canastas_con_auxiliares: {},
-        canastas_clientes_prestadas: [],
-      };
-      save(KEYS.ESTADO, estado);
-    }
-
-    if (!load(KEYS.CONFIG)) {
-      save(KEYS.CONFIG, { inventario_inicial: 100 });
-    }
-
-    if (!load(KEYS.MOVIMIENTOS)) {
-      // Seed 2 sample movements
-      const now = Date.now();
-      const movimientos = [];
-
-      // Movement 1: salida_auxiliar
-      const ref1 = generateRef();
-      movimientos.push({
-        id: generateId(),
-        referencia_numero: ref1,
-        tipo: 'salida_auxiliar',
-        cantidad: 10,
-        auxiliar_id: 'aux1',
-        cliente_nombre: null,
-        fecha: new Date(now - 86400000 * 2).toISOString(),
-        admin_registrador: 'admin1',
-        notas: 'Movimiento inicial de ejemplo',
-      });
-
-      // Movement 2: entrada_cliente
-      const ref2 = generateRef();
-      const clientePrestamoId = generateId();
-      movimientos.push({
-        id: generateId(),
-        referencia_numero: ref2,
-        tipo: 'entrada_cliente',
-        cantidad: 20,
-        auxiliar_id: null,
-        cliente_nombre: 'Distribuciones López',
-        cliente_prestamo_id: clientePrestamoId,
-        fecha: new Date(now - 86400000).toISOString(),
-        admin_registrador: 'admin1',
-        notas: 'Cliente dejó canastas en préstamo',
-      });
-
-      save(KEYS.MOVIMIENTOS, movimientos);
-
-      // Reflect seed movements in estado
-      const estado = load(KEYS.ESTADO);
-      // salida_auxiliar: bodega -10, aux1 +10
-      estado.canastas_en_bodega -= 10;
-      estado.canastas_con_auxiliares['aux1'] = 10;
-      // entrada_cliente: client baskets added to bodega
-      estado.canastas_en_bodega += 20;
-      estado.canastas_clientes_prestadas.push({
-        id: clientePrestamoId,
-        cliente: 'Distribuciones López',
-        cantidad: 20,
-        fecha_entrada: new Date(now - 86400000).toISOString(),
-      });
-      save(KEYS.ESTADO, estado);
-    }
-  }
-
-  // ─── Auxiliares CRUD ────────────────────────────────────────────────────────
-
-  function getAuxiliares(soloActivos = false) {
-    const list = load(KEYS.AUXILIARES) || [];
-    return soloActivos ? list.filter(a => a.activo) : list;
-  }
-
-  function getAuxiliarById(id) {
-    return getAuxiliares().find(a => a.id === id) || null;
-  }
-
-  function addAuxiliar(nombre, cedula) {
-    const list = getAuxiliares();
-    const dup = list.find(a => a.cedula === cedula.trim());
-    if (dup) throw new Error(`Ya existe un auxiliar con cédula ${cedula}`);
-    const aux = { id: generateId(), nombre: nombre.trim(), cedula: cedula.trim(), activo: true };
-    list.push(aux);
-    save(KEYS.AUXILIARES, list);
-    return aux;
-  }
-
-  function updateAuxiliar(id, campos) {
-    const list = getAuxiliares();
-    const idx = list.findIndex(a => a.id === id);
-    if (idx === -1) throw new Error('Auxiliar no encontrado');
-    list[idx] = { ...list[idx], ...campos };
-    save(KEYS.AUXILIARES, list);
-    return list[idx];
-  }
-
-  function deactivateAuxiliar(id) {
-    const estado = load(KEYS.ESTADO);
-    const pending = estado.canastas_con_auxiliares[id] || 0;
+  async function deactivateAuxiliar(id) {
+    const estado = await getEstado();
+    const pending = (estado.canastas_con_auxiliares || {})[id] || 0;
     if (pending > 0) {
       throw new Error(`El auxiliar tiene ${pending} canastas pendientes por devolver`);
     }
     return updateAuxiliar(id, { activo: false });
   }
 
-  function reactivateAuxiliar(id) {
+  async function reactivateAuxiliar(id) {
     return updateAuxiliar(id, { activo: true });
   }
 
-  // ─── Estado ─────────────────────────────────────────────────────────────────
+  // ─── Estado ───────────────────────────────────────────────────────────────
 
-  function getEstado() {
-    return load(KEYS.ESTADO) || {
+  async function getEstado() {
+    if (_estadoCache) return _estadoCache;
+    const data = await GET('/estado?id=eq.main');
+    _estadoCache = (data && data[0]) || {
+      id: 'main',
       canastas_en_bodega: 0,
       canastas_con_auxiliares: {},
       canastas_clientes_prestadas: [],
     };
+    return _estadoCache;
   }
 
-  function setInventarioInicial(cantidad) {
+  async function saveEstado(estado) {
+    estado.updated_at = new Date().toISOString();
+    await PATCH('/estado?id=eq.main', {
+      canastas_en_bodega:          estado.canastas_en_bodega,
+      canastas_con_auxiliares:     estado.canastas_con_auxiliares,
+      canastas_clientes_prestadas: estado.canastas_clientes_prestadas,
+      updated_at:                  estado.updated_at,
+    });
+    _estadoCache = estado;
+  }
+
+  async function setInventarioInicial(cantidad) {
     if (cantidad < 0) throw new Error('La cantidad no puede ser negativa');
-    const estado = getEstado();
-    const config = load(KEYS.CONFIG) || {};
-    config.inventario_inicial = cantidad;
-    save(KEYS.CONFIG, config);
+    const estado = await getEstado();
     estado.canastas_en_bodega = cantidad;
-    save(KEYS.ESTADO, estado);
+    await saveEstado(estado);
+    await PATCH('/config?id=eq.main', { inventario_inicial: cantidad });
   }
 
-  function getConfig() {
-    return load(KEYS.CONFIG) || { inventario_inicial: 0 };
+  async function getConfig() {
+    const data = await GET('/config?id=eq.main');
+    return (data && data[0]) || { inventario_inicial: 100, mov_counter: 0 };
   }
 
-  // ─── Movimientos ────────────────────────────────────────────────────────────
+  // ─── Contador de referencia ───────────────────────────────────────────────
 
-  function getMovimientos() {
-    return load(KEYS.MOVIMIENTOS) || [];
+  async function nextMovCounter() {
+    // Incremento atómico via RPC o via PATCH leyendo el valor actual
+    const cfg = await getConfig();
+    const next = (cfg.mov_counter || 0) + 1;
+    await PATCH('/config?id=eq.main', { mov_counter: next });
+    return next;
   }
 
-  /**
-   * Registra un movimiento y actualiza el estado.
-   * tipo: 'salida_auxiliar' | 'entrada_auxiliar' | 'entrada_cliente' | 'salida_cliente'
-   */
-  function registrarMovimiento({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id, admin_registrador, notas }) {
+  async function generateRef() {
+    const year = new Date().getFullYear();
+    const num  = String(await nextMovCounter()).padStart(4, '0');
+    return `MOV-${year}-${num}`;
+  }
+
+  // ─── Movimientos ─────────────────────────────────────────────────────────
+
+  async function getMovimientos() {
+    const data = await GET('/movimientos?order=fecha.desc&limit=500');
+    return data || [];
+  }
+
+  async function registrarMovimiento({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id, admin_registrador, notas }) {
     cantidad = parseInt(cantidad, 10);
     if (isNaN(cantidad) || cantidad <= 0) throw new Error('Cantidad inválida: debe ser un número mayor a 0');
 
-    const estado = getEstado();
-    const movimientos = getMovimientos();
+    const estado = await getEstado();
     let resolvedClienteNombre = cliente_nombre || null;
 
     switch (tipo) {
       case 'salida_auxiliar': {
         if (!auxiliar_id) throw new Error('Debe seleccionar un auxiliar');
-        const aux = getAuxiliarById(auxiliar_id);
+        const aux = await getAuxiliarById(auxiliar_id);
         if (!aux || !aux.activo) throw new Error('Auxiliar inválido o inactivo');
         if (estado.canastas_en_bodega < cantidad) {
           throw new Error(`Solo hay ${estado.canastas_en_bodega} canastas en bodega`);
@@ -228,7 +186,7 @@ const DB = (() => {
       }
       case 'entrada_auxiliar': {
         if (!auxiliar_id) throw new Error('Debe seleccionar un auxiliar');
-        const auxCant = estado.canastas_con_auxiliares[auxiliar_id] || 0;
+        const auxCant = (estado.canastas_con_auxiliares[auxiliar_id] || 0);
         if (auxCant < cantidad) {
           throw new Error(`El auxiliar solo tiene ${auxCant} canastas fuera`);
         }
@@ -242,8 +200,8 @@ const DB = (() => {
       case 'entrada_cliente': {
         if (!cliente_nombre || !cliente_nombre.trim()) throw new Error('Debe ingresar el nombre del cliente');
         const prestamo = {
-          id: generateId(),
-          cliente: cliente_nombre.trim(),
+          id:            crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
+          cliente:       cliente_nombre.trim(),
           cantidad,
           fecha_entrada: new Date().toISOString(),
         };
@@ -279,57 +237,63 @@ const DB = (() => {
         throw new Error('Tipo de movimiento desconocido');
     }
 
+    // Guardar estado actualizado
+    await saveEstado(estado);
+
+    // Insertar movimiento
+    const ref = await generateRef();
     const mov = {
-      id: generateId(),
-      referencia_numero: generateRef(),
+      referencia_numero: ref,
       tipo,
       cantidad,
-      auxiliar_id: auxiliar_id || null,
-      cliente_nombre: resolvedClienteNombre,
-      fecha: new Date().toISOString(),
+      auxiliar_id:         auxiliar_id || null,
+      cliente_nombre:      resolvedClienteNombre,
+      cliente_prestamo_id: cliente_prestamo_id || null,
       admin_registrador,
-      notas: notas || '',
+      notas:               notas || '',
+      fecha:               new Date().toISOString(),
     };
 
-    movimientos.push(mov);
-    save(KEYS.MOVIMIENTOS, movimientos);
-    save(KEYS.ESTADO, estado);
-    return mov;
+    const inserted = await POST('/movimientos', mov);
+    return Array.isArray(inserted) ? inserted[0] : inserted;
   }
 
-  // ─── Historial filters ──────────────────────────────────────────────────────
+  // ─── Historial con filtros ────────────────────────────────────────────────
 
-  function filtrarMovimientos({ fechaDesde, fechaHasta, tipo, auxiliar_id } = {}) {
-    let movs = getMovimientos();
-    if (fechaDesde) {
-      const d = new Date(fechaDesde + 'T00:00:00');
-      movs = movs.filter(m => new Date(m.fecha) >= d);
-    }
-    if (fechaHasta) {
-      const h = new Date(fechaHasta + 'T23:59:59');
-      movs = movs.filter(m => new Date(m.fecha) <= h);
-    }
-    if (tipo && tipo !== 'todos') {
-      movs = movs.filter(m => m.tipo === tipo);
-    }
-    if (auxiliar_id && auxiliar_id !== 'todos') {
-      movs = movs.filter(m => m.auxiliar_id === auxiliar_id);
-    }
-    return movs.slice().reverse();
+  async function filtrarMovimientos({ fechaDesde, fechaHasta, tipo, auxiliar_id } = {}) {
+    let path = '/movimientos?order=fecha.desc&limit=1000';
+
+    if (fechaDesde) path += `&fecha=gte.${fechaDesde}T00:00:00`;
+    if (fechaHasta) path += `&fecha=lte.${fechaHasta}T23:59:59`;
+    if (tipo && tipo !== 'todos') path += `&tipo=eq.${tipo}`;
+    if (auxiliar_id && auxiliar_id !== 'todos') path += `&auxiliar_id=eq.${auxiliar_id}`;
+
+    const data = await GET(path);
+    return data || [];
   }
 
-  // ─── Reset ──────────────────────────────────────────────────────────────────
+  // ─── Reset ────────────────────────────────────────────────────────────────
 
-  function resetData() {
-    Object.values(KEYS).forEach(k => localStorage.removeItem(k));
-    init();
+  async function resetData() {
+    // Borra movimientos
+    await api('DELETE', '/movimientos?id=neq.00000000-0000-0000-0000-000000000000');
+    // Resetea estado
+    await PATCH('/estado?id=eq.main', {
+      canastas_en_bodega: 100,
+      canastas_con_auxiliares: {},
+      canastas_clientes_prestadas: [],
+      updated_at: new Date().toISOString(),
+    });
+    // Resetea contador
+    await PATCH('/config?id=eq.main', { mov_counter: 0, inventario_inicial: 100 });
+    invalidateCache();
   }
 
-  // ─── CSV Export ─────────────────────────────────────────────────────────────
+  // ─── CSV Export ───────────────────────────────────────────────────────────
 
-  function exportCSV() {
-    const movs = getMovimientos().slice().reverse();
-    const auxiliares = getAuxiliares();
+  async function exportCSV() {
+    const movs = await getMovimientos();
+    const auxiliares = await getAuxiliares();
     const auxMap = {};
     auxiliares.forEach(a => { auxMap[a.id] = a.nombre; });
 
@@ -357,7 +321,7 @@ const DB = (() => {
       .join('\n');
   }
 
-  // ─── Utilities ──────────────────────────────────────────────────────────────
+  // ─── Utilidades ──────────────────────────────────────────────────────────
 
   function formatFecha(isoString) {
     if (!isoString) return '';
@@ -388,5 +352,6 @@ const DB = (() => {
     resetData,
     exportCSV,
     formatFecha,
+    invalidateCache,
   };
 })();
