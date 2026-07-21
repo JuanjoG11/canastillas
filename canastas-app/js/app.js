@@ -50,17 +50,19 @@ const APP = (() => {
     document.getElementById('entrada-aux-select').addEventListener('change', updateEntradaAuxInfo);
     document.getElementById('salida-cliente-select').addEventListener('change', updateSalidaClienteInfo);
 
-    // Búsqueda rápida en cualquier campo con clase aux-search
-    document.querySelectorAll('.aux-search').forEach(input => {
-      const selectId = input.dataset.for;
-      input.addEventListener('input', () => {
-        const q   = input.value.toLowerCase();
-        const sel = document.getElementById(selectId);
-        if (!sel) return;
-        Array.from(sel.options).forEach(opt => {
-          if (!opt.value) return;
-          opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
-        });
+    // Limpiar autocompletes al reiniciar formularios
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('reset', () => {
+        form.querySelectorAll('.aux-autocomplete-input').forEach(inp => inp.value = '');
+        form.querySelectorAll('.autocomplete-dropdown').forEach(d => d.classList.add('hidden'));
+      });
+    });
+
+    document.getElementById('search-auxiliares-input')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.auxiliar-card').forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(q) ? '' : 'none';
       });
     });
 

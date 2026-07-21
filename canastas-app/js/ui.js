@@ -331,32 +331,133 @@ const UI = (() => {
   }
 
   // ─── Selects con búsqueda ─────────────────────────────────────────────────
+  // ─── Selects con búsqueda autocomplete ────────────────────────────────────
   async function populateAuxiliarSelect(selectId, soloActivos = true) {
-    const wrapper = document.getElementById(selectId + '-wrapper');
-    const sel     = document.getElementById(selectId);
-    if (!sel) return;
+    const el = document.getElementById(selectId);
+    if (!el) return;
 
     const auxiliares = await DB.getAuxiliares(soloActivos);
-    const current    = sel.value;
 
-    sel.innerHTML = '<option value="">-- Seleccione auxiliar --</option>' +
-      auxiliares.map(a =>
-        `<option value="${a.id}">${escapeHtml(a.nombre)} (CC: ${escapeHtml(a.cedula)})</option>`
-      ).join('');
-    if (current) sel.value = current;
+    // Si es un input autocomplete
+    const container = el.closest('.autocomplete-container') || document.querySelector(`.autocomplete-container[data-aux-target="${selectId}"]`);
+    if (container) {
+      const textInput = container.querySelector('.aux-autocomplete-input');
+      const dropdown  = container.querySelector('.autocomplete-dropdown');
+      if (!textInput || !dropdown) return;
 
-    // Activar búsqueda si hay wrapper
-    if (wrapper) {
-      const searchInput = wrapper.querySelector('.aux-search');
-      if (searchInput) {
-        searchInput.addEventListener('input', () => {
-          const q = searchInput.value.toLowerCase();
-          Array.from(sel.options).forEach(opt => {
-            if (!opt.value) return;
-            opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+      if (!el.value) {
+        textInput.value = '';
+      } else if (el.value === 'todos') {
+        textInput.value = '';
+      } else {
+        const match = auxiliares.find(a => a.id === el.value);
+        if (match) textInput.value = `${match.nombre} (${match.cedula})`;
+      }
+
+      let activeIndex = -1;
+
+      const renderList = (query = '') => {
+        const q = query.toLowerCase().trim();
+        const filtered = q
+          ? auxiliares.filter(a => a.nombre.toLowerCase().includes(q) || a.cedula.includes(q))
+          : auxiliares;
+
+        if (filtered.length === 0) {
+          dropdown.innerHTML = '<div class="autocomplete-no-results">No se encontraron auxiliares</div>';
+        } else {
+          dropdown.innerHTML = filtered.map(a => `
+            <div class="autocomplete-item" data-id="${a.id}" data-nombre="${escapeHtml(a.nombre)}" data-cedula="${escapeHtml(a.cedula)}">
+              <span class="item-nombre">${escapeHtml(a.nombre)}</span>
+              <span class="item-cedula">CC: ${escapeHtml(a.cedula)}</span>
+            </div>
+          `).join('');
+
+          dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+              e.stopPropagation();
+              selectItem(item);
+            });
           });
+        }
+        dropdown.classList.remove('hidden');
+        activeIndex = -1;
+      };
+
+      const selectItem = (itemEl) => {
+        if (!itemEl) return;
+        const id     = itemEl.dataset.id;
+        const nombre = itemEl.dataset.nombre;
+        const cedula = itemEl.dataset.cedula;
+
+        el.value        = id;
+        textInput.value = `${nombre} (${cedula})`;
+        dropdown.classList.add('hidden');
+
+        // Disparar evento change para listener de info
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      if (!textInput._autocompleteBound) {
+        textInput._autocompleteBound = true;
+
+        textInput.addEventListener('focus', () => {
+          renderList(textInput.value);
+        });
+
+        textInput.addEventListener('input', () => {
+          el.value = '';
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          renderList(textInput.value);
+        });
+
+        textInput.addEventListener('keydown', (e) => {
+          const items = dropdown.querySelectorAll('.autocomplete-item');
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (dropdown.classList.contains('hidden')) { renderList(textInput.value); return; }
+            if (items.length > 0) {
+              activeIndex = (activeIndex + 1) % items.length;
+              items.forEach((it, idx) => it.classList.toggle('active-item', idx === activeIndex));
+              items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+            }
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length > 0) {
+              activeIndex = (activeIndex - 1 + items.length) % items.length;
+              items.forEach((it, idx) => it.classList.toggle('active-item', idx === activeIndex));
+              items[activeIndex]?.scrollIntoView({ block: 'nearest' });
+            }
+          } else if (e.key === 'Enter') {
+            if (!dropdown.classList.contains('hidden')) {
+              e.preventDefault();
+              if (activeIndex >= 0 && items[activeIndex]) {
+                selectItem(items[activeIndex]);
+              } else if (items.length > 0) {
+                selectItem(items[0]);
+              }
+            }
+          } else if (e.key === 'Escape') {
+            dropdown.classList.add('hidden');
+          }
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!container.contains(e.target)) {
+            dropdown.classList.add('hidden');
+          }
         });
       }
+      return;
+    }
+
+    // Fallback si es un select estándar
+    if (el.tagName === 'SELECT') {
+      const current = el.value;
+      el.innerHTML = '<option value="">-- Seleccione auxiliar --</option>' +
+        auxiliares.map(a =>
+          `<option value="${a.id}">${escapeHtml(a.nombre)} (CC: ${escapeHtml(a.cedula)})</option>`
+        ).join('');
+      if (current) el.value = current;
     }
   }
 

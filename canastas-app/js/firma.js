@@ -16,32 +16,36 @@ const FIRMA = (() => {
   let _reject   = null;
   let _hasMark  = false;
 
-  // ─── Subir PNG a Supabase Storage ─────────────────────────────────────────
+  // ─── Subir PNG a Supabase Storage o Data URL Fallback ──────────────────────
   async function subirFirma(blob, nombreArchivo) {
-    const res = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${nombreArchivo}`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey':        SUPABASE_ANON,
-          'Authorization': 'Bearer ' + SUPABASE_ANON,
-          'Content-Type':  'image/png',
-          'x-upsert':      'true',
-        },
-        body: blob,
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${nombreArchivo}`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey':        SUPABASE_ANON,
+            'Authorization': 'Bearer ' + SUPABASE_ANON,
+            'Content-Type':  'image/png',
+            'x-upsert':      'true',
+          },
+          body: blob,
+        }
+      );
+      if (res.ok) {
+        return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${nombreArchivo}`;
       }
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error('Error subiendo firma: ' + text);
+    } catch (e) {
+      console.warn('Storage upload attempt error:', e);
     }
-    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${nombreArchivo}`;
+    // Fallback si el bucket no existe aún o falla RLS en Storage
+    return _canvas.toDataURL('image/png');
   }
 
   // ─── Mostrar pad de firma ──────────────────────────────────────────────────
   /**
    * Muestra el modal de firma y retorna una Promise que resuelve con la URL
-   * de la firma subida, o null si el usuario cancela.
+   * de la firma subida.
    *
    * @param {string} nombreAuxiliar  - Para mostrar en el encabezado
    * @param {string} tipoMovimiento  - 'salida' | 'entrada'
@@ -76,7 +80,7 @@ const FIRMA = (() => {
             </div>
           </div>
           <div class="firma-aux-nombre">${_escHtml(nombreAuxiliar)}</div>
-          <div class="firma-instruccion">Firma con el dedo en el recuadro</div>
+          <div class="firma-instruccion">Firma obligatoria con el dedo en el recuadro</div>
         </div>
 
         <div class="firma-canvas-wrap">
@@ -90,10 +94,7 @@ const FIRMA = (() => {
           <button id="firma-btn-limpiar" class="btn btn-secondary btn-sm">
             🗑 Limpiar
           </button>
-          <button id="firma-btn-omitir" class="btn btn-secondary btn-sm">
-            Omitir firma
-          </button>
-          <button id="firma-btn-confirmar" class="btn btn-primary btn-sm" disabled>
+          <button id="firma-btn-confirmar" class="btn btn-primary btn-sm" style="flex:1" disabled>
             ✓ Confirmar firma
           </button>
         </div>
@@ -111,10 +112,6 @@ const FIRMA = (() => {
 
     document.getElementById('firma-btn-limpiar').addEventListener('click', _limpiar);
     document.getElementById('firma-btn-confirmar').addEventListener('click', _confirmar);
-    document.getElementById('firma-btn-omitir').addEventListener('click', () => {
-      _cerrarModal();
-      _resolve(null);
-    });
   }
 
   function _ajustarCanvas() {
@@ -188,11 +185,9 @@ const FIRMA = (() => {
 
     const btnConfirmar = document.getElementById('firma-btn-confirmar');
     const btnLimpiar   = document.getElementById('firma-btn-limpiar');
-    const btnOmitir    = document.getElementById('firma-btn-omitir');
     btnConfirmar.disabled = true;
     btnConfirmar.textContent = 'Guardando...';
     if (btnLimpiar) btnLimpiar.disabled = true;
-    if (btnOmitir)  btnOmitir.disabled  = true;
 
     try {
       const blob     = await _canvasToBlob();
@@ -204,7 +199,6 @@ const FIRMA = (() => {
       btnConfirmar.disabled = false;
       btnConfirmar.textContent = '✓ Confirmar firma';
       if (btnLimpiar) btnLimpiar.disabled = false;
-      if (btnOmitir)  btnOmitir.disabled  = false;
       alert('Error al guardar la firma: ' + err.message);
     }
   }

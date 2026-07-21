@@ -131,12 +131,13 @@
           <p class="text-muted mb-1">Canastas que salen con un auxiliar. Deben regresar a bodega.</p>
           <hr class="divider" />
           <form id="form-salida-auxiliar" novalidate>
-            <div class="form-group">
-              <label>Auxiliar *</label>
-              <input class="form-control aux-search" data-for="salida-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
-              <select id="salida-aux-select" class="form-control" required>
-                <option value="">-- Seleccione auxiliar --</option>
-              </select>
+            <div class="form-group autocomplete-container" data-aux-target="salida-aux-select">
+              <label for="salida-aux-input">Auxiliar *</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="salida-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
+                <input type="hidden" id="salida-aux-select" required />
+                <div class="autocomplete-dropdown hidden" id="salida-aux-dropdown"></div>
+              </div>
             </div>
             <div class="form-group">
               <label for="salida-aux-cantidad">Cantidad de canastas *</label>
@@ -156,12 +157,13 @@
           <p class="text-muted mb-1">Devolución de canastas por parte de un auxiliar.</p>
           <hr class="divider" />
           <form id="form-entrada-auxiliar" novalidate>
-            <div class="form-group">
-              <label>Auxiliar *</label>
-              <input class="form-control aux-search" data-for="entrada-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
-              <select id="entrada-aux-select" class="form-control" required>
-                <option value="">-- Seleccione auxiliar --</option>
-              </select>
+            <div class="form-group autocomplete-container" data-aux-target="entrada-aux-select">
+              <label for="entrada-aux-input">Auxiliar *</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="entrada-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
+                <input type="hidden" id="entrada-aux-select" required />
+                <div class="autocomplete-dropdown hidden" id="entrada-aux-dropdown"></div>
+              </div>
             </div>
             <div id="entrada-aux-info" class="field-info hidden mb-1"></div>
             <div class="form-group">
@@ -186,12 +188,13 @@
               <label for="entrada-cliente-nombre">Nombre del cliente *</label>
               <input id="entrada-cliente-nombre" class="form-control" type="text" placeholder="Ej: Distribuciones Pérez" required />
             </div>
-            <div class="form-group">
-              <label>Auxiliar responsable *</label>
-              <input class="form-control aux-search" data-for="entrada-cliente-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
-              <select id="entrada-cliente-aux-select" class="form-control" required>
-                <option value="">-- Seleccione auxiliar --</option>
-              </select>
+            <div class="form-group autocomplete-container" data-aux-target="entrada-cliente-aux-select">
+              <label for="entrada-cliente-aux-input">Auxiliar responsable *</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="entrada-cliente-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
+                <input type="hidden" id="entrada-cliente-aux-select" required />
+                <div class="autocomplete-dropdown hidden" id="entrada-cliente-aux-dropdown"></div>
+              </div>
             </div>
             <div class="form-group">
               <label for="entrada-cliente-cantidad">Cantidad de canastas *</label>
@@ -218,12 +221,13 @@
               </select>
             </div>
             <div id="salida-cliente-info" class="field-info hidden mb-1"></div>
-            <div class="form-group">
-              <label>Auxiliar que devuelve *</label>
-              <input class="form-control aux-search" data-for="salida-cliente-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
-              <select id="salida-cliente-aux-select" class="form-control" required>
-                <option value="">-- Seleccione auxiliar --</option>
-              </select>
+            <div class="form-group autocomplete-container" data-aux-target="salida-cliente-aux-select">
+              <label for="salida-cliente-aux-input">Auxiliar que devuelve *</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="salida-cliente-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
+                <input type="hidden" id="salida-cliente-aux-select" required />
+                <div class="autocomplete-dropdown hidden" id="salida-cliente-aux-dropdown"></div>
+              </div>
             </div>
             <div class="form-group">
               <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
@@ -261,7 +265,12 @@
               </form>
             </div>
           </div>
-          <div><div id="auxiliares-list"></div></div>
+          <div>
+            <div class="form-group mb-1">
+              <input id="search-auxiliares-input" class="form-control" type="text" placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" />
+            </div>
+            <div id="auxiliares-list"></div>
+          </div>
         </div>
       </section>
 

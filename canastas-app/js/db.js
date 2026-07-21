@@ -86,45 +86,80 @@ const DB = (() => {
   // ─── Estado ────────────────────────────────────────────────────────────────
   async function getEstado() {
     if (_estadoCache) return _estadoCache;
-    const data = await GET('/estado?id=eq.main');
-    _estadoCache = (data && data[0]) || {
-      id: 'main',
-      canastas_en_bodega: 0,
-      canastas_con_auxiliares: {},
-      canastas_clientes_prestadas: [],
-    };
+    let data = null;
+    try { data = await GET('/estado?id=eq.main'); } catch (e) { console.warn('getEstado:', e); }
+    
+    if (data && data.length > 0) {
+      _estadoCache = data[0];
+    } else {
+      _estadoCache = {
+        id: 'main',
+        canastas_en_bodega: 0,
+        canastas_con_auxiliares: {},
+        canastas_clientes_prestadas: [],
+      };
+    }
     return _estadoCache;
   }
 
   async function saveEstado(estado) {
     estado.updated_at = new Date().toISOString();
-    await PATCH('/estado?id=eq.main', {
+    const payload = {
+      id:                            'main',
       canastas_en_bodega:            estado.canastas_en_bodega,
-      canastas_con_auxiliares:       estado.canastas_con_auxiliares,
-      canastas_clientes_prestadas:   estado.canastas_clientes_prestadas,
+      canastas_con_auxiliares:       estado.canastas_con_auxiliares || {},
+      canastas_clientes_prestadas:   estado.canastas_clientes_prestadas || [],
       updated_at:                    estado.updated_at,
-    });
+    };
+    try {
+      await api('POST', '/estado?on_conflict=id', payload, {
+        'Prefer': 'resolution=merge-duplicates,return=representation'
+      });
+    } catch (e) {
+      // Fallback a PATCH
+      await PATCH('/estado?id=eq.main', payload);
+    }
     _estadoCache = estado;
   }
 
   async function setInventarioInicial(cantidad) {
     if (cantidad < 0) throw new Error('La cantidad no puede ser negativa');
     const estado = await getEstado();
-    estado.canastas_en_bodega = cantidad;
+    estado.canastas_en_bodega = Number(cantidad);
     await saveEstado(estado);
-    await PATCH('/config?id=eq.main', { inventario_inicial: cantidad });
+
+    const cfg = await getConfig();
+    cfg.inventario_inicial = Number(cantidad);
+    await saveConfig(cfg);
   }
 
   async function getConfig() {
-    const data = await GET('/config?id=eq.main');
-    return (data && data[0]) || { inventario_inicial: 100, mov_counter: 0 };
+    let data = null;
+    try { data = await GET('/config?id=eq.main'); } catch {}
+    return (data && data[0]) || { id: 'main', inventario_inicial: 100, mov_counter: 0 };
+  }
+
+  async function saveConfig(cfg) {
+    const payload = {
+      id:                 'main',
+      inventario_inicial: cfg.inventario_inicial ?? 100,
+      mov_counter:        cfg.mov_counter ?? 0,
+    };
+    try {
+      await api('POST', '/config?on_conflict=id', payload, {
+        'Prefer': 'resolution=merge-duplicates,return=representation'
+      });
+    } catch (e) {
+      await PATCH('/config?id=eq.main', payload);
+    }
   }
 
   // ─── Referencia ────────────────────────────────────────────────────────────
   async function generateRef() {
     const cfg  = await getConfig();
     const next = (cfg.mov_counter || 0) + 1;
-    await PATCH('/config?id=eq.main', { mov_counter: next });
+    cfg.mov_counter = next;
+    await saveConfig(cfg);
     const year = new Date().getFullYear();
     return `MOV-${year}-${String(next).padStart(4, '0')}`;
   }

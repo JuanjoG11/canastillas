@@ -143,6 +143,58 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border-radius: var(--radius-sm); border-left: 3px solid var(--primary);
 }
 
+/* ─── Autocomplete ─────────────────────────────────────────────────────────── */
+.autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--white);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 500;
+}
+.autocomplete-item {
+  padding: .625rem .875rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--gray-100);
+  transition: background var(--transition);
+}
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+.autocomplete-item:hover, .autocomplete-item.active-item {
+  background: var(--primary-light);
+}
+.autocomplete-item .item-nombre {
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: .9375rem;
+}
+.autocomplete-item .item-cedula {
+  font-size: .8125rem;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.autocomplete-no-results {
+  padding: .75rem;
+  color: var(--gray-500);
+  font-size: .875rem;
+  text-align: center;
+}
+
 /* ─── Login Screen ─────────────────────────────────────────────────────────── */
 #login-screen {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
