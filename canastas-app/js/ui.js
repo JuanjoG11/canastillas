@@ -258,7 +258,7 @@ const UI = (() => {
     if (countEl) countEl.textContent = `${total} registro(s) total`;
 
     if (movimientos.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay movimientos para los filtros seleccionados</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No hay movimientos para los filtros seleccionados</td></tr>';
       renderPagination();
       return;
     }
@@ -270,8 +270,25 @@ const UI = (() => {
       const responsable = m.auxiliar_id
         ? (auxMap[m.auxiliar_id] || m.auxiliar_id)
         : '—';
-      return `<tr>
-        <td><span class="ref-number">${escapeHtml(m.referencia_numero)}</span></td>
+      const anulado  = m.anulado;
+      const esEspejo = m.notas && m.notas.startsWith('Anulación de');
+      const rowClass = anulado ? 'fila-anulada' : (esEspejo ? 'fila-espejo' : '');
+
+      const firmaBtn = m.firma_url
+        ? `<button class="btn-firma" onclick="APP.verFirma('${m.firma_url}')" title="Ver firma">🖊️</button>`
+        : '';
+      const anuladoBadge = anulado  ? '<span class="badge badge-red" style="font-size:.7rem">Anulado</span>' : '';
+      const espejoBadge  = esEspejo ? '<span class="badge badge-gray" style="font-size:.7rem">Contrapartida</span>' : '';
+
+      const anularBtn = (!anulado && !esEspejo)
+        ? `<button class="btn-anular" onclick="APP.anularMovimiento('${m.id}','${escapeHtml(m.referencia_numero)}')" title="Anular movimiento">✕</button>`
+        : '';
+
+      return `<tr class="${rowClass}">
+        <td>
+          <span class="ref-number">${escapeHtml(m.referencia_numero)}</span>
+          ${anuladoBadge}${espejoBadge}
+        </td>
         <td>${DB.formatFecha(m.fecha)}</td>
         <td><span class="badge ${TIPO_BADGE[m.tipo] || 'badge-blue'}">${TIPO_LABELS[m.tipo] || m.tipo}</span></td>
         <td class="text-center"><strong>${m.cantidad}</strong></td>
@@ -279,6 +296,7 @@ const UI = (() => {
         <td>${escapeHtml(m.cliente_nombre || '—')}</td>
         <td>${escapeHtml(m.admin_registrador)}</td>
         <td class="notas-cell" title="${escapeHtml(m.notas || '')}">${escapeHtml(m.notas || '—')}</td>
+        <td class="text-center">${firmaBtn}${anularBtn}</td>
       </tr>`;
     }).join('');
 

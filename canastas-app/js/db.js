@@ -266,7 +266,101 @@ const DB = (() => {
     return Array.isArray(inserted) ? inserted[0] : inserted;
   }
 
-  // ─── Filtros historial ─────────────────────────────────────────────────────
+  // ─── Anular movimiento ────────────────────────────────────────────────────
+  /**
+   * Anula un movimiento:
+   * 1. Marca el original como anulado
+   * 2. Crea un movimiento espejo que revierte el estado
+   */
+  async function anularMovimiento(movId, adminRegistrador) {
+    // Buscar el movimiento original
+    const data = await GET(`/movimientos?id=eq.${movId}`);
+    const mov  = data && data[0];
+    if (!mov) throw new Error('Movimiento no encontrado');
+    if (mov.anulado) throw new Error('Este movimiento ya fue anulado');
+
+    const estado = await getEstado();
+
+    // Calcular tipo espejo
+    const tipoEspejo = {
+      salida_auxiliar:  'entrada_auxiliar',
+      entrada_auxiliar: 'salida_auxiliar',
+      entrada_cliente:  'salida_cliente',
+      salida_cliente:   'entrada_cliente',
+    }[mov.tipo];
+    if (!tipoEspejo) throw new Error('Tipo de movimiento no reversible');
+
+    // Revertir estado
+    switch (mov.tipo) {
+      case 'salida_auxiliar':
+        estado.canastas_en_bodega += mov.cantidad;
+        estado.canastas_con_auxiliares[mov.auxiliar_id] =
+          (estado.canastas_con_auxiliares[mov.auxiliar_id] || 0) - mov.cantidad;
+        if ((estado.canastas_con_auxiliares[mov.auxiliar_id] || 0) <= 0)
+          delete estado.canastas_con_auxiliares[mov.auxiliar_id];
+        break;
+      case 'entrada_auxiliar':
+        estado.canastas_en_bodega -= mov.cantidad;
+        estado.canastas_con_auxiliares[mov.auxiliar_id] =
+          (estado.canastas_con_auxiliares[mov.auxiliar_id] || 0) + mov.cantidad;
+        break;
+      case 'entrada_cliente': {
+        // Quitar el préstamo que se creó
+        estado.canastas_en_bodega -= mov.cantidad;
+        const pidx = estado.canastas_clientes_prestadas.findIndex(
+          p => p.cliente === mov.cliente_nombre && p.cantidad === mov.cantidad
+        );
+        if (pidx !== -1) estado.canastas_clientes_prestadas.splice(pidx, 1);
+        break;
+      }
+      case 'salida_cliente':
+        estado.canastas_en_bodega += mov.cantidad;
+        // Re-agregar préstamo si fue devuelto completamente
+        if (mov.cliente_nombre) {
+          estado.canastas_clientes_prestadas.push({
+            id:            crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
+            cliente:       mov.cliente_nombre,
+            cantidad:      mov.cantidad,
+            auxiliar_id:   mov.auxiliar_id || null,
+            fecha_entrada: new Date().toISOString(),
+          });
+        }
+        break;
+    }
+
+    await saveEstado(estado);
+
+    // Marcar original como anulado
+    await PATCH(`/movimientos?id=eq.${movId}`, {
+      anulado:       true,
+      anulado_por:   adminRegistrador,
+      anulacion_ref: mov.referencia_numero,
+    });
+
+    // Crear movimiento espejo
+    const ref   = await generateRef();
+    const espejo = {
+      referencia_numero:   ref,
+      tipo:                tipoEspejo,
+      cantidad:            mov.cantidad,
+      auxiliar_id:         mov.auxiliar_id || null,
+      cliente_nombre:      mov.cliente_nombre || null,
+      cliente_prestamo_id: mov.cliente_prestamo_id || null,
+      admin_registrador:   adminRegistrador,
+      notas:               `Anulación de ${mov.referencia_numero}`,
+      anulacion_ref:       mov.referencia_numero,
+      fecha:               new Date().toISOString(),
+    };
+
+    const inserted = await POST('/movimientos', espejo);
+    invalidateCache();
+    return Array.isArray(inserted) ? inserted[0] : inserted;
+  }
+
+  // ─── Guardar firma en un movimiento ───────────────────────────────────────
+  async function guardarFirma(movId, firmaUrl) {
+    await PATCH(`/movimientos?id=eq.${movId}`, { firma_url: firmaUrl });
+  }
   async function filtrarMovimientos({ fechaDesde, fechaHasta, tipo, auxiliar_id } = {}) {
     let path = '/movimientos?order=fecha.desc&limit=1000';
     if (fechaDesde)                             path += `&fecha=gte.${fechaDesde}T00:00:00`;
@@ -332,6 +426,7 @@ const DB = (() => {
     deactivateAuxiliar, reactivateAuxiliar,
     getEstado, setInventarioInicial, getConfig,
     getMovimientos, getMovimientosPaginados, registrarMovimiento, filtrarMovimientos,
+    anularMovimiento, guardarFirma,
     resetData, exportCSV, formatFecha, invalidateCache,
   };
 })();

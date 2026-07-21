@@ -552,3 +552,97 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
   white-space: nowrap;
   font-size: .8125rem;
 }
+
+/* ─── Modal de firma ────────────────────────────────────────────────────────── */
+.firma-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  animation: fadeIn .15s ease;
+}
+
+.firma-modal {
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 480px;
+  overflow: hidden;
+  animation: slideUp .2s ease;
+}
+
+.firma-header {
+  padding: 1.25rem 1.5rem 1rem;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+}
+.firma-header-top {
+  display: flex; align-items: center; gap: .75rem;
+  margin-bottom: .5rem;
+}
+.firma-emoji { font-size: 2rem; line-height: 1; }
+.firma-titulo    { font-size: 1.1rem; font-weight: 700; color: var(--gray-900); }
+.firma-subtitulo { font-size: .8rem; color: var(--gray-500); font-family: monospace; }
+.firma-aux-nombre {
+  font-size: 1.25rem; font-weight: 600; color: var(--primary);
+  margin-bottom: .25rem;
+}
+.firma-instruccion { font-size: .8125rem; color: var(--gray-500); }
+
+.firma-canvas-wrap {
+  position: relative;
+  height: 220px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+  cursor: crosshair;
+}
+
+.firma-canvas {
+  display: block;
+  width: 100%; height: 100%;
+  touch-action: none;
+}
+
+.firma-placeholder {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; color: var(--gray-300);
+  pointer-events: none;
+  user-select: none;
+}
+
+.firma-actions {
+  display: flex; gap: .5rem; padding: 1rem 1.25rem;
+  justify-content: flex-end; flex-wrap: wrap;
+  background: var(--gray-50);
+}
+
+/* ─── Filas anuladas en historial ───────────────────────────────────────────── */
+.fila-anulada td {
+  text-decoration: line-through;
+  opacity: .55;
+  background: var(--danger-light) !important;
+}
+.fila-espejo td {
+  background: #F0FDF4 !important;
+  font-style: italic;
+}
+
+/* ─── Botones de acción en historial ────────────────────────────────────────── */
+.btn-firma, .btn-anular {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border: none; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: .875rem;
+  transition: background var(--transition);
+}
+.btn-firma  { background: var(--primary-light); color: var(--primary); }
+.btn-firma:hover  { background: #BFDBFE; }
+.btn-anular { background: var(--danger-light); color: var(--danger); margin-left: .25rem; }
+.btn-anular:hover { background: #FECACA; }
+
+/* Columna acciones del historial */
+.data-table th:last-child,
+.data-table td:last-child {
+  width: 72px; text-align: center; white-space: nowrap;
+}

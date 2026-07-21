@@ -278,9 +278,29 @@ const APP = (() => {
         try {
           DB.invalidateCache();
           const mov = await DB.registrarMovimiento({ ...data, admin_registrador: AUTH.getCurrentUser() });
-          UI.toast(`✓ Registrado: ${mov.referencia_numero}`, 'success');
+
+          // Solicitar firma solo en salida/entrada de auxiliar
+          const necesitaFirma = ['salida_auxiliar', 'entrada_auxiliar'].includes(data.tipo);
+          if (necesitaFirma) {
+            const aux      = await DB.getAuxiliarById(data.auxiliar_id);
+            const auxNombre = aux ? aux.nombre : 'Auxiliar';
+            const tipoLabel = data.tipo === 'salida_auxiliar' ? 'salida' : 'entrada';
+
+            UI.setLoading(false);
+            const firmaUrl = await FIRMA.solicitarFirma(auxNombre, tipoLabel, mov.referencia_numero);
+
+            if (firmaUrl) {
+              UI.setLoading(true);
+              await DB.guardarFirma(mov.id, firmaUrl);
+              UI.toast(`✓ Registrado y firmado: ${mov.referencia_numero}`, 'success');
+            } else {
+              UI.toast(`✓ Registrado sin firma: ${mov.referencia_numero}`, 'success');
+            }
+          } else {
+            UI.toast(`✓ Registrado: ${mov.referencia_numero}`, 'success');
+          }
+
           document.getElementById(formId).reset();
-          // Limpiar búsquedas
           document.querySelectorAll('.aux-search').forEach(i => i.value = '');
           document.querySelectorAll('.field-info').forEach(el => el.classList.add('hidden'));
           if (afterSuccess) await afterSuccess();
@@ -433,7 +453,46 @@ const APP = (() => {
     });
   }
 
-  return { init, navigateTo, editAuxiliar, toggleAuxiliar, resetAuxiliarForm, exportCSV };
+  // ─── Anular movimiento ─────────────────────────────────────────────────────
+  async function anularMovimiento(movId, referencia) {
+    UI.showModal({
+      title: '¿Anular movimiento?',
+      body: `<p>Vas a anular el movimiento <strong>${UI.escapeHtml(referencia)}</strong>.</p>
+             <p style="margin-top:.5rem">Esto creará un movimiento de contrapartida automático para revertir el estado. <strong>El historial conserva ambos registros.</strong></p>`,
+      confirmLabel: '🗑 Anular',
+      danger: true,
+      onConfirm: async () => {
+        UI.setLoading(true);
+        try {
+          const espejo = await DB.anularMovimiento(movId, AUTH.getCurrentUser());
+          UI.toast(`Movimiento anulado. Contrapartida: ${espejo.referencia_numero}`, 'success');
+          // Refrescar historial
+          await UI.renderHistorial(historialFilters, 1);
+        } catch (err) { UI.toast(err.message, 'error'); }
+        UI.setLoading(false);
+      },
+    });
+  }
+
+  // ─── Ver firma ─────────────────────────────────────────────────────────────
+  function verFirma(url) {
+    UI.showModal({
+      title: '🖊️ Firma del Auxiliar',
+      body: `<div style="text-align:center">
+               <img src="${url}" alt="Firma" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:8px;" />
+             </div>`,
+      confirmLabel: 'Cerrar',
+      cancelLabel: '',
+      onConfirm: () => {},
+    });
+    // Ocultar botón cancelar
+    setTimeout(() => {
+      const cancelBtn = document.getElementById('modal-cancel');
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    }, 0);
+  }
+
+  return { init, navigateTo, editAuxiliar, toggleAuxiliar, resetAuxiliarForm, exportCSV, anularMovimiento, verFirma };
 })();
 
 document.addEventListener('DOMContentLoaded', APP.init);
