@@ -66,9 +66,6 @@ const APP = (() => {
       });
     });
 
-    document.getElementById('form-auxiliar').addEventListener('submit', handleAuxiliarSubmit);
-    document.getElementById('btn-cancel-auxiliar').addEventListener('click', resetAuxiliarForm);
-
     document.getElementById('btn-apply-filters').addEventListener('click', applyHistorialFilters);
     document.getElementById('btn-clear-filters').addEventListener('click',  clearHistorialFilters);
     document.getElementById('btn-export-csv').addEventListener('click',     exportCSV);
@@ -114,7 +111,7 @@ const APP = (() => {
       switch (section) {
         case 'dashboard':     await UI.renderDashboard();                                            break;
         case 'movimiento':    await switchMovTab('salida-auxiliar');                                 break;
-        case 'auxiliares':    await UI.renderAuxiliares(); resetAuxiliarForm();                      break;
+        case 'auxiliares':    await UI.renderAuxiliares();                                             break;
         case 'historial':     await populateHistorialFilters(); await UI.renderHistorial(historialFilters, 1); break;
         case 'configuracion': await UI.renderConfiguracion();                                        break;
       }
@@ -476,6 +473,11 @@ const APP = (() => {
     });
   }
 
+  // ─── Historial por auxiliar ────────────────────────────────────────────────
+  async function verHistorialAuxiliar(auxId, auxNombre) {
+    await UI.showHistorialAuxiliar(auxId, auxNombre);
+  }
+
   // ─── Ver firma ─────────────────────────────────────────────────────────────
   function verFirma(url) {
     UI.showModal({
@@ -494,7 +496,7 @@ const APP = (() => {
     }, 0);
   }
 
-  return { init, navigateTo, editAuxiliar, toggleAuxiliar, resetAuxiliarForm, exportCSV, anularMovimiento, verFirma };
+  return { init, navigateTo, editAuxiliar, toggleAuxiliar, exportCSV, anularMovimiento, verFirma, verHistorialAuxiliar };
 })();
 
 document.addEventListener('DOMContentLoaded', APP.init);

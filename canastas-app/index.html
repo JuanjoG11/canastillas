@@ -245,33 +245,10 @@
       <!-- ── AUXILIARES ── -->
       <section id="section-auxiliares" class="section">
         <h2 class="section-title"><span class="section-icon">👷</span> Auxiliares</h2>
-        <div class="auxiliares-layout">
-          <div>
-            <div class="card">
-              <h3 class="card-title" id="form-auxiliar-title">Nuevo Auxiliar</h3>
-              <form id="form-auxiliar" novalidate>
-                <div class="form-group">
-                  <label for="aux-nombre">Nombre completo *</label>
-                  <input id="aux-nombre" class="form-control" type="text" placeholder="Ej: Carlos Gómez" required />
-                </div>
-                <div class="form-group">
-                  <label for="aux-cedula">Cédula *</label>
-                  <input id="aux-cedula" class="form-control" type="text" placeholder="Ej: 12345678" required />
-                </div>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                  <button type="submit" class="btn btn-primary" style="flex:1;">Guardar</button>
-                  <button type="button" id="btn-cancel-auxiliar" class="btn btn-secondary hidden" style="flex:1;">Cancelar</button>
-                </div>
-              </form>
-            </div>
-          </div>
-          <div>
-            <div class="form-group mb-1">
-              <input id="search-auxiliares-input" class="form-control" type="text" placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" />
-            </div>
-            <div id="auxiliares-list"></div>
-          </div>
+        <div class="form-group mb-1">
+          <input id="search-auxiliares-input" class="form-control" type="text" placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" style="max-width:360px" />
         </div>
+        <div id="auxiliares-list"></div>
       </section>
 
       <!-- ── HISTORIAL ── -->

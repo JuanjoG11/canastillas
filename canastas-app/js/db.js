@@ -396,6 +396,11 @@ const DB = (() => {
   async function guardarFirma(movId, firmaUrl) {
     await PATCH(`/movimientos?id=eq.${movId}`, { firma_url: firmaUrl });
   }
+  async function getMovimientosPorAuxiliar(auxiliar_id, limit = 100) {
+    const path = `/movimientos?auxiliar_id=eq.${auxiliar_id}&order=fecha.desc&limit=${limit}`;
+    return (await GET(path)) || [];
+  }
+
   async function filtrarMovimientos({ fechaDesde, fechaHasta, tipo, auxiliar_id } = {}) {
     let path = '/movimientos?order=fecha.desc&limit=1000';
     if (fechaDesde)                             path += `&fecha=gte.${fechaDesde}T00:00:00`;
@@ -460,7 +465,7 @@ const DB = (() => {
     init, getAuxiliares, getAuxiliarById, addAuxiliar, updateAuxiliar,
     deactivateAuxiliar, reactivateAuxiliar,
     getEstado, setInventarioInicial, getConfig,
-    getMovimientos, getMovimientosPaginados, registrarMovimiento, filtrarMovimientos,
+    getMovimientos, getMovimientosPaginados, getMovimientosPorAuxiliar, registrarMovimiento, filtrarMovimientos,
     anularMovimiento, guardarFirma,
     resetData, exportCSV, formatFecha, invalidateCache,
   };

@@ -213,26 +213,42 @@ const UI = (() => {
       const canastas    = (estado.canastas_con_auxiliares || {})[aux.id] || 0;
       const statusClass = aux.activo ? 'badge-green' : 'badge-gray';
       const statusLabel = aux.activo ? 'Activo' : 'Inactivo';
-      const semaforo    = canastas > 0 ? getSemaforo(ultimasSalidas[aux.id]) : null;
+      const semaforo    = canastas > 0 ? getSemaforo(ultimasSalidas[aux.id]) : { color: 'gray', label: '' };
 
-      return `<div class="card auxiliar-card ${!aux.activo ? 'inactive' : ''}">
-        <div class="auxiliar-header">
-          <div>
-            <div class="auxiliar-nombre">
-              ${semaforo ? `<span class="semaforo semaforo-${semaforo.color}" title="${semaforo.label}"></span>` : ''}
-              ${escapeHtml(aux.nombre)}
+      // Calcular días desde última salida para mostrar
+      let diasLabel = '';
+      if (canastas > 0 && ultimasSalidas[aux.id]) {
+        const diff = Math.floor((Date.now() - new Date(ultimasSalidas[aux.id])) / 86400000);
+        diasLabel = diff === 0 ? 'Salió hoy' : diff === 1 ? 'Hace 1 día' : `Hace ${diff} días`;
+      }
+
+      const iconoTipo = canastas > 0 ? '🧺' : '✓';
+
+      return `<div class="auxiliar-card ${!aux.activo ? 'inactive' : ''}"
+        onclick="APP.verHistorialAuxiliar('${aux.id}', '${escapeHtml(aux.nombre).replace(/'/g, "\\'")}')"
+        title="Ver historial de ${escapeHtml(aux.nombre)}">
+        <div class="auxiliar-card-bar bar-${semaforo.color}"></div>
+        <div class="auxiliar-card-body">
+          <div class="auxiliar-card-top">
+            <div>
+              <div class="auxiliar-nombre">${escapeHtml(aux.nombre)}</div>
+              <div class="auxiliar-cedula">CC: ${escapeHtml(aux.cedula)}</div>
             </div>
-            <div class="auxiliar-cedula text-muted">CC: ${escapeHtml(aux.cedula)}</div>
+            <span class="badge ${statusClass}">${statusLabel}</span>
           </div>
-          <span class="badge ${statusClass}">${statusLabel}</span>
+          <div class="auxiliar-stats">
+            <span class="aux-stat-canastas ${canastas === 0 ? 'sin-canastas' : ''}">
+              ${iconoTipo} ${canastas} canasta${canastas !== 1 ? 's' : ''}
+            </span>
+            ${diasLabel ? `<span class="aux-stat-dias">${diasLabel}</span>` : ''}
+          </div>
         </div>
-        <div class="auxiliar-footer">
-          <span class="badge ${canastas > 0 ? 'badge-blue' : 'badge-gray'}">${canastas} canastas fuera</span>
+        <div class="auxiliar-card-footer">
+          <span class="aux-ver-historial">📋 Ver historial →</span>
           <div class="auxiliar-actions">
-            <button class="btn btn-sm btn-secondary" onclick="APP.editAuxiliar('${aux.id}')">Editar</button>
             ${aux.activo
-              ? `<button class="btn btn-sm btn-danger" onclick="APP.toggleAuxiliar('${aux.id}', false)">Desactivar</button>`
-              : `<button class="btn btn-sm btn-primary" onclick="APP.toggleAuxiliar('${aux.id}', true)">Activar</button>`
+              ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();APP.toggleAuxiliar('${aux.id}', false)">Desactivar</button>`
+              : `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();APP.toggleAuxiliar('${aux.id}', true)">Activar</button>`
             }
           </div>
         </div>
@@ -328,6 +344,161 @@ const UI = (() => {
     await renderHistorial(_histFilters, page);
     setLoading(false);
     document.getElementById('section-historial')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ─── Drawer historial por auxiliar ───────────────────────────────────────
+  const TIPO_ICONS = {
+    salida_auxiliar:  '📤',
+    entrada_auxiliar: '📥',
+    entrada_cliente:  '🏢',
+    salida_cliente:   '🔄',
+  };
+
+  async function showHistorialAuxiliar(auxId, auxNombre) {
+    // Eliminar drawer previo si existe
+    document.getElementById('aux-drawer-overlay')?.remove();
+
+    // Crear overlay + drawer
+    const overlay = document.createElement('div');
+    overlay.id = 'aux-drawer-overlay';
+    overlay.className = 'aux-drawer-overlay';
+
+    const drawer = document.createElement('div');
+    drawer.className = 'aux-drawer';
+    drawer.innerHTML = `
+      <div class="aux-drawer-header">
+        <div class="aux-drawer-header-top">
+          <div>
+            <div class="aux-drawer-nombre">👷 ${escapeHtml(auxNombre)}</div>
+            <div class="aux-drawer-cedula" id="aux-drawer-cedula">Cargando...</div>
+          </div>
+          <button class="aux-drawer-close" id="aux-drawer-close-btn" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="aux-drawer-chips" id="aux-drawer-chips">
+          <span class="aux-chip">⏳ Cargando...</span>
+        </div>
+      </div>
+      <div class="aux-drawer-body" id="aux-drawer-body">
+        <div class="aux-drawer-empty">
+          <div class="aux-drawer-empty-icon">⏳</div>
+          <div>Cargando historial...</div>
+        </div>
+      </div>`;
+
+    overlay.appendChild(drawer);
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      overlay.style.animation = 'fadeIn .15s ease reverse';
+      drawer.style.animation  = 'drawerIn .18s ease reverse';
+      setTimeout(() => overlay.remove(), 160);
+    };
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.getElementById('aux-drawer-close-btn').addEventListener('click', close);
+
+    // Cerrar con Escape
+    const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
+    document.addEventListener('keydown', onKey);
+
+    try {
+      const [movs, estado, aux] = await Promise.all([
+        DB.getMovimientosPorAuxiliar(auxId),
+        DB.getEstado(),
+        DB.getAuxiliarById(auxId),
+      ]);
+
+      // Actualizar cabecera
+      const canastas = (estado.canastas_con_auxiliares || {})[auxId] || 0;
+      document.getElementById('aux-drawer-cedula').textContent = aux ? `CC: ${aux.cedula}` : '';
+
+      const chipsEl = document.getElementById('aux-drawer-chips');
+      const statusChip = aux?.activo
+        ? '<span class="aux-chip">✅ Activo</span>'
+        : '<span class="aux-chip">⛔ Inactivo</span>';
+      const canastasChip = canastas > 0
+        ? `<span class="aux-chip">🧺 ${canastas} canasta${canastas !== 1 ? 's' : ''} fuera</span>`
+        : '<span class="aux-chip">✓ Sin canastas fuera</span>';
+      const totalChip = `<span class="aux-chip">📋 ${movs.length} movimiento${movs.length !== 1 ? 's' : ''}</span>`;
+      chipsEl.innerHTML = statusChip + canastasChip + totalChip;
+
+      const bodyEl = document.getElementById('aux-drawer-body');
+
+      if (movs.length === 0) {
+        bodyEl.innerHTML = `
+          <div class="aux-drawer-empty">
+            <div class="aux-drawer-empty-icon">📭</div>
+            <div style="font-weight:600;color:var(--gray-600)">Sin movimientos</div>
+            <div style="font-size:.85rem">Este auxiliar aún no tiene registros.</div>
+          </div>`;
+        return;
+      }
+
+      // Agrupar por fecha (día)
+      const groups = {};
+      movs.forEach(m => {
+        const d   = new Date(m.fecha);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const hoy   = new Date(); hoy.setHours(0,0,0,0);
+        const ayer  = new Date(hoy); ayer.setDate(hoy.getDate()-1);
+        const mDate = new Date(d); mDate.setHours(0,0,0,0);
+        let label;
+        if (mDate.getTime() === hoy.getTime())  label = 'Hoy';
+        else if (mDate.getTime() === ayer.getTime()) label = 'Ayer';
+        else label = d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        if (!groups[key]) groups[key] = { label, items: [] };
+        groups[key].items.push(m);
+      });
+
+      let html = '<div class="aux-timeline">';
+      Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(key => {
+        const g = groups[key];
+        html += `<div class="aux-tl-date-group">
+          <div class="aux-tl-date-label">${g.label}</div>`;
+
+        g.items.forEach(m => {
+          const anulado   = m.anulado;
+          const esEspejo  = m.notas && m.notas.startsWith('Anulación de');
+          const iconClass = anulado || esEspejo ? 'tipo-anulado' : `tipo-${m.tipo}`;
+          const hora      = new Date(m.fecha).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+          const tipoLabel = TIPO_LABELS[m.tipo] || m.tipo;
+          const icon      = TIPO_ICONS[m.tipo] || '↔️';
+          const anuladoBadge = anulado  ? '<span class="aux-tl-anulado-badge">Anulado</span>' : '';
+          const espejoBadge  = esEspejo ? '<span class="aux-tl-anulado-badge" style="background:var(--gray-100);color:var(--gray-500)">Contrapartida</span>' : '';
+
+          html += `<div class="aux-tl-item">
+            <div class="aux-tl-icon ${iconClass}">${icon}</div>
+            <div class="aux-tl-content">
+              <div class="aux-tl-top">
+                <span class="aux-tl-tipo" style="${anulado ? 'text-decoration:line-through;opacity:.6' : ''}">${tipoLabel} ${anuladoBadge}${espejoBadge}</span>
+                <span class="aux-tl-cant">${m.cantidad} 🧺</span>
+              </div>
+              <div class="aux-tl-ref">${escapeHtml(m.referencia_numero)}</div>
+              <div class="aux-tl-meta">
+                <span>🕐 ${hora}</span>
+                ${m.cliente_nombre ? `<span>👤 ${escapeHtml(m.cliente_nombre)}</span>` : ''}
+                ${m.admin_registrador ? `<span>🔑 ${escapeHtml(m.admin_registrador)}</span>` : ''}
+                ${m.firma_url ? `<span>🖊️ Firmado</span>` : ''}
+              </div>
+              ${m.notas ? `<div class="aux-tl-notas" title="${escapeHtml(m.notas)}">💬 ${escapeHtml(m.notas)}</div>` : ''}
+            </div>
+          </div>`;
+        });
+
+        html += '</div>';
+      });
+
+      html += '</div>';
+      bodyEl.innerHTML = html;
+
+    } catch (err) {
+      document.getElementById('aux-drawer-body').innerHTML = `
+        <div class="aux-drawer-empty">
+          <div class="aux-drawer-empty-icon">⚠️</div>
+          <div>Error al cargar historial</div>
+          <div style="font-size:.8rem">${escapeHtml(err.message)}</div>
+        </div>`;
+    }
   }
 
   // ─── Selects con búsqueda ─────────────────────────────────────────────────
@@ -501,7 +672,7 @@ const UI = (() => {
     toast, showModal, closeModal, setLoading, showSection,
     renderDashboard, renderAuxiliares, renderHistorial, goToPage,
     renderMovimientoRow, populateAuxiliarSelect, populateClientePrestamos,
-    renderConfiguracion, escapeHtml, getSemaforo,
+    renderConfiguracion, showHistorialAuxiliar, escapeHtml, getSemaforo,
     TIPO_LABELS, TIPO_BADGE,
   };
 })();
