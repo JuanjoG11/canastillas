@@ -164,7 +164,38 @@ const DB = (() => {
     return data || [];
   }
 
-  async function registrarMovimiento({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id, admin_registrador, notas }) {
+  // Paginado: devuelve { rows, total }
+  async function getMovimientosPaginados({ page = 1, pageSize = 50, fechaDesde, fechaHasta, tipo, auxiliar_id } = {}) {
+    const from = (page - 1) * pageSize;
+    const to   = from + pageSize - 1;
+
+    let path = '/movimientos?order=fecha.desc';
+    if (fechaDesde)                     path += `&fecha=gte.${fechaDesde}T00:00:00`;
+    if (fechaHasta)                     path += `&fecha=lte.${fechaHasta}T23:59:59`;
+    if (tipo && tipo !== 'todos')        path += `&tipo=eq.${tipo}`;
+    if (auxiliar_id && auxiliar_id !== 'todos') path += `&auxiliar_id=eq.${auxiliar_id}`;
+
+    // Supabase range header para paginación eficiente
+    const res = await fetch(BASE + path, {
+      headers: {
+        ...HEADERS,
+        'Range':       `${from}-${to}`,
+        'Range-Unit':  'items',
+        'Prefer':      'count=exact',
+      },
+    });
+    const text = await res.text();
+    let rows = [];
+    try { rows = JSON.parse(text); } catch {}
+
+    // Content-Range: 0-49/1234
+    const cr    = res.headers.get('Content-Range') || '';
+    const total = parseInt((cr.split('/')[1] || '0'), 10) || rows.length;
+
+    return { rows, total };
+  }
+
+  async function registrarMovimiento({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id, admin_registrador, notas, turno }) {
     cantidad = parseInt(cantidad, 10);
     if (isNaN(cantidad) || cantidad <= 0) throw new Error('Cantidad inválida: debe ser un número mayor a 0');
 
@@ -243,7 +274,7 @@ const DB = (() => {
     // Insertar movimiento
     const ref = await generateRef();
     const mov = {
-      referencia_numero: ref,
+      referencia_numero:   ref,
       tipo,
       cantidad,
       auxiliar_id:         auxiliar_id || null,
@@ -251,6 +282,7 @@ const DB = (() => {
       cliente_prestamo_id: cliente_prestamo_id || null,
       admin_registrador,
       notas:               notas || '',
+      turno:               turno || 'mañana',
       fecha:               new Date().toISOString(),
     };
 
@@ -304,7 +336,7 @@ const DB = (() => {
       salida_cliente:   'Salida a Cliente',
     };
 
-    const headers = ['Referencia', 'Fecha', 'Tipo', 'Cantidad', 'Auxiliar', 'Cliente', 'Admin', 'Notas'];
+    const headers = ['Referencia', 'Fecha', 'Tipo', 'Cantidad', 'Auxiliar', 'Cliente', 'Turno', 'Admin', 'Notas'];
     const rows = movs.map(m => [
       m.referencia_numero,
       formatFecha(m.fecha),
@@ -312,6 +344,7 @@ const DB = (() => {
       m.cantidad,
       m.auxiliar_id ? (auxMap[m.auxiliar_id] || m.auxiliar_id) : '',
       m.cliente_nombre || '',
+      m.turno || '',
       m.admin_registrador,
       m.notas,
     ]);
@@ -334,7 +367,6 @@ const DB = (() => {
     return `${day}/${month}/${year} ${hours}:${mins}`;
   }
 
-  // Public API
   return {
     init,
     getAuxiliares,
@@ -347,6 +379,7 @@ const DB = (() => {
     setInventarioInicial,
     getConfig,
     getMovimientos,
+    getMovimientosPaginados,
     registrarMovimiento,
     filtrarMovimientos,
     resetData,

@@ -1,5 +1,5 @@
 /**
- * ui.js - UI rendering helpers (async/await para Supabase)
+ * ui.js - UI rendering helpers
  * Control de Canastas PWA
  */
 
@@ -19,8 +19,15 @@ const UI = (() => {
     salida_cliente:   'badge-red',
   };
 
-  // ─── Toast ─────────────────────────────────────────────────────────────────
+  const TURNO_ICONS = { 'mañana': '🌅', 'tarde': '🌤️', 'noche': '🌙' };
 
+  // ─── Estado de paginación ─────────────────────────────────────────────────
+  let _histPage     = 1;
+  const PAGE_SIZE   = 50;
+  let _histFilters  = {};
+  let _histTotal    = 0;
+
+  // ─── Toast ────────────────────────────────────────────────────────────────
   function toast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -38,8 +45,7 @@ const UI = (() => {
     }, 3500);
   }
 
-  // ─── Modal ─────────────────────────────────────────────────────────────────
-
+  // ─── Modal genérico ───────────────────────────────────────────────────────
   function showModal({ title, body, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', onConfirm, danger = false }) {
     const overlay      = document.getElementById('modal-overlay');
     const modalTitle   = document.getElementById('modal-title');
@@ -52,50 +58,39 @@ const UI = (() => {
     modalConfirm.textContent = confirmLabel;
     modalCancel.textContent  = cancelLabel;
     modalConfirm.className   = danger ? 'btn btn-danger' : 'btn btn-primary';
-
     overlay.classList.remove('hidden');
 
     const close = () => overlay.classList.add('hidden');
-
     const handleConfirm = () => {
       close();
       if (onConfirm) onConfirm();
       modalConfirm.removeEventListener('click', handleConfirm);
       modalCancel.removeEventListener('click', close);
     };
-
     modalConfirm.addEventListener('click', handleConfirm);
     modalCancel.addEventListener('click', close);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close();
-    }, { once: true });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); }, { once: true });
   }
 
   function closeModal() {
-    const overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.classList.add('hidden');
+    document.getElementById('modal-overlay')?.classList.add('hidden');
   }
 
-  // ─── Spinner ───────────────────────────────────────────────────────────────
-
+  // ─── Spinner ──────────────────────────────────────────────────────────────
   function setLoading(show) {
-    const spinner = document.getElementById('global-spinner');
-    if (spinner) spinner.classList.toggle('hidden', !show);
+    document.getElementById('global-spinner')?.classList.toggle('hidden', !show);
   }
 
-  // ─── Navegación ────────────────────────────────────────────────────────────
-
+  // ─── Navegación ───────────────────────────────────────────────────────────
   function showSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById(`section-${sectionId}`);
-    if (target) target.classList.add('active');
+    document.getElementById(`section-${sectionId}`)?.classList.add('active');
     document.querySelectorAll('[data-nav]').forEach(el => {
       el.classList.toggle('active', el.dataset.nav === sectionId);
     });
   }
 
-  // ─── Dashboard ─────────────────────────────────────────────────────────────
-
+  // ─── Dashboard ────────────────────────────────────────────────────────────
   async function renderDashboard() {
     const [estado, auxiliares, movimientos] = await Promise.all([
       DB.getEstado(),
@@ -103,29 +98,38 @@ const UI = (() => {
       DB.getMovimientos(),
     ]);
 
-    const recentMovs     = movimientos.slice(0, 10);
-    const totalAuxiliares = Object.values(estado.canastas_con_auxiliares || {})
-      .reduce((s, v) => s + v, 0);
-    const totalClientes  = (estado.canastas_clientes_prestadas || [])
-      .reduce((s, p) => s + p.cantidad, 0);
+    const recentMovs      = movimientos.slice(0, 10);
+    const totalAuxiliares = Object.values(estado.canastas_con_auxiliares || {}).reduce((s, v) => s + v, 0);
+    const totalClientes   = (estado.canastas_clientes_prestadas || []).reduce((s, p) => s + p.cantidad, 0);
 
     document.getElementById('stat-bodega').textContent     = estado.canastas_en_bodega;
     document.getElementById('stat-auxiliares').textContent = totalAuxiliares;
     document.getElementById('stat-clientes').textContent   = totalClientes;
     document.getElementById('stat-total').textContent      = estado.canastas_en_bodega + totalAuxiliares;
 
-    // Auxiliares breakdown
+    // Auxiliares breakdown con semáforo
     const breakdownEl = document.getElementById('auxiliares-breakdown');
     const auxEntries  = Object.entries(estado.canastas_con_auxiliares || {}).filter(([, v]) => v > 0);
     if (auxEntries.length === 0) {
       breakdownEl.innerHTML = '<p class="text-muted small">Ningún auxiliar tiene canastas fuera</p>';
     } else {
+      // Obtener última salida por auxiliar para el semáforo
+      const ultimasSalidas = {};
+      movimientos.forEach(m => {
+        if (m.tipo === 'salida_auxiliar' && m.auxiliar_id) {
+          if (!ultimasSalidas[m.auxiliar_id]) ultimasSalidas[m.auxiliar_id] = m.fecha;
+        }
+      });
       breakdownEl.innerHTML = auxEntries.map(([auxId, cant]) => {
         const aux    = auxiliares.find(a => a.id === auxId);
         const nombre = aux ? aux.nombre : auxId;
+        const semaforo = getSemaforo(ultimasSalidas[auxId]);
         return `<div class="breakdown-row">
-          <span class="breakdown-name">${escapeHtml(nombre)}</span>
-          <span class="badge badge-blue">${cant} canastas</span>
+          <span class="breakdown-name">
+            <span class="semaforo semaforo-${semaforo.color}" title="${semaforo.label}"></span>
+            ${escapeHtml(nombre)}
+          </span>
+          <span class="badge badge-blue">${cant} 🧺</span>
         </div>`;
       }).join('');
     }
@@ -139,32 +143,37 @@ const UI = (() => {
       clientesEl.innerHTML = prestamos.map(p => `
         <div class="breakdown-row">
           <span class="breakdown-name">${escapeHtml(p.cliente)}</span>
-          <span class="badge badge-orange">${p.cantidad} canastas</span>
-        </div>
-      `).join('');
+          <span class="badge badge-orange">${p.cantidad} 🧺</span>
+        </div>`).join('');
     }
 
     // Movimientos recientes
     const recentEl = document.getElementById('recent-movements');
-    if (recentMovs.length === 0) {
-      recentEl.innerHTML = '<p class="text-muted small">No hay movimientos registrados</p>';
-    } else {
-      recentEl.innerHTML = recentMovs.map(m => renderMovimientoRow(m, auxiliares)).join('');
-    }
+    recentEl.innerHTML = recentMovs.length === 0
+      ? '<p class="text-muted small">No hay movimientos registrados</p>'
+      : recentMovs.map(m => renderMovimientoRow(m, auxiliares)).join('');
+  }
+
+  // Semáforo: verde=hoy, amarillo=ayer, rojo=2+ días
+  function getSemaforo(fechaISO) {
+    if (!fechaISO) return { color: 'gray', label: 'Sin fecha' };
+    const diff = (Date.now() - new Date(fechaISO)) / 86400000;
+    if (diff < 1)  return { color: 'green',  label: 'Salió hoy' };
+    if (diff < 3)  return { color: 'yellow', label: 'Salió hace 1-2 días' };
+    return          { color: 'red',    label: 'Salió hace más de 3 días' };
   }
 
   function renderMovimientoRow(m, auxiliares) {
     const auxMap = {};
     (auxiliares || []).forEach(a => { auxMap[a.id] = a.nombre; });
-    const responsable = m.auxiliar_id
-      ? (auxMap[m.auxiliar_id] || m.auxiliar_id)
-      : (m.cliente_nombre || '—');
-
+    const responsable = m.auxiliar_id ? (auxMap[m.auxiliar_id] || m.auxiliar_id) : (m.cliente_nombre || '—');
+    const turnoIcon   = TURNO_ICONS[m.turno] || '';
     return `<div class="movement-row">
       <div class="movement-ref">${escapeHtml(m.referencia_numero)}</div>
       <div class="movement-info">
         <span class="badge ${TIPO_BADGE[m.tipo] || 'badge-blue'}">${TIPO_LABELS[m.tipo] || m.tipo}</span>
         <span class="movement-responsable">${escapeHtml(responsable)}</span>
+        ${turnoIcon ? `<span title="${escapeHtml(m.turno || '')}">${turnoIcon}</span>` : ''}
       </div>
       <div class="movement-meta">
         <span class="movement-cantidad">${m.cantidad} 🧺</span>
@@ -173,36 +182,47 @@ const UI = (() => {
     </div>`;
   }
 
-  // ─── Auxiliares ────────────────────────────────────────────────────────────
-
+  // ─── Auxiliares con semáforo ──────────────────────────────────────────────
   async function renderAuxiliares() {
-    const [auxiliares, estado] = await Promise.all([
+    const [auxiliares, estado, movimientos] = await Promise.all([
       DB.getAuxiliares(),
       DB.getEstado(),
+      DB.getMovimientos(),
     ]);
 
     const listEl = document.getElementById('auxiliares-list');
-
     if (auxiliares.length === 0) {
       listEl.innerHTML = '<p class="text-muted">No hay auxiliares registrados</p>';
       return;
     }
 
+    // Última salida por auxiliar
+    const ultimasSalidas = {};
+    movimientos.forEach(m => {
+      if (m.tipo === 'salida_auxiliar' && m.auxiliar_id && !ultimasSalidas[m.auxiliar_id]) {
+        ultimasSalidas[m.auxiliar_id] = m.fecha;
+      }
+    });
+
     listEl.innerHTML = auxiliares.map(aux => {
       const canastas    = (estado.canastas_con_auxiliares || {})[aux.id] || 0;
       const statusClass = aux.activo ? 'badge-green' : 'badge-gray';
       const statusLabel = aux.activo ? 'Activo' : 'Inactivo';
+      const semaforo    = canastas > 0 ? getSemaforo(ultimasSalidas[aux.id]) : null;
 
       return `<div class="card auxiliar-card ${!aux.activo ? 'inactive' : ''}">
         <div class="auxiliar-header">
           <div>
-            <div class="auxiliar-nombre">${escapeHtml(aux.nombre)}</div>
+            <div class="auxiliar-nombre">
+              ${semaforo ? `<span class="semaforo semaforo-${semaforo.color}" title="${semaforo.label}"></span>` : ''}
+              ${escapeHtml(aux.nombre)}
+            </div>
             <div class="auxiliar-cedula text-muted">CC: ${escapeHtml(aux.cedula)}</div>
           </div>
           <span class="badge ${statusClass}">${statusLabel}</span>
         </div>
         <div class="auxiliar-footer">
-          <span class="badge badge-blue">${canastas} canastas fuera</span>
+          <span class="badge ${canastas > 0 ? 'badge-blue' : 'badge-gray'}">${canastas} canastas fuera</span>
           <div class="auxiliar-actions">
             <button class="btn btn-sm btn-secondary" onclick="APP.editAuxiliar('${aux.id}')">Editar</button>
             ${aux.activo
@@ -215,20 +235,26 @@ const UI = (() => {
     }).join('');
   }
 
-  // ─── Historial ─────────────────────────────────────────────────────────────
+  // ─── Historial paginado ───────────────────────────────────────────────────
+  async function renderHistorial(filters = {}, page = 1) {
+    _histFilters = filters;
+    _histPage    = page;
 
-  async function renderHistorial(filters = {}) {
-    const [movimientos, auxiliares] = await Promise.all([
-      DB.filtrarMovimientos(filters),
+    const [result, auxiliares] = await Promise.all([
+      DB.getMovimientosPaginados({ ...filters, page, pageSize: PAGE_SIZE }),
       DB.getAuxiliares(),
     ]);
 
+    const { rows: movimientos, total } = result;
+    _histTotal = total;
+
     const tableBody = document.getElementById('historial-tbody');
     const countEl   = document.getElementById('historial-count');
-    if (countEl) countEl.textContent = `${movimientos.length} registro(s)`;
+    if (countEl) countEl.textContent = `${total} registro(s) total`;
 
     if (movimientos.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay movimientos para los filtros seleccionados</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay movimientos para los filtros seleccionados</td></tr>';
+      renderPagination();
       return;
     }
 
@@ -239,42 +265,89 @@ const UI = (() => {
       const responsable = m.auxiliar_id
         ? (auxMap[m.auxiliar_id] || m.auxiliar_id)
         : (m.cliente_nombre || '—');
+      const turnoIcon = TURNO_ICONS[m.turno] || '';
       return `<tr>
         <td><span class="ref-number">${escapeHtml(m.referencia_numero)}</span></td>
         <td>${DB.formatFecha(m.fecha)}</td>
         <td><span class="badge ${TIPO_BADGE[m.tipo] || 'badge-blue'}">${TIPO_LABELS[m.tipo] || m.tipo}</span></td>
         <td class="text-center"><strong>${m.cantidad}</strong></td>
         <td>${escapeHtml(responsable)}</td>
+        <td>${turnoIcon} ${escapeHtml(m.turno || '')}</td>
         <td>${escapeHtml(m.admin_registrador)}</td>
         <td class="notas-cell" title="${escapeHtml(m.notas || '')}">${escapeHtml(m.notas || '—')}</td>
       </tr>`;
     }).join('');
+
+    renderPagination();
   }
 
-  // ─── Selects dinámicos ─────────────────────────────────────────────────────
+  function renderPagination() {
+    const container = document.getElementById('historial-pagination');
+    if (!container) return;
 
+    const totalPages = Math.ceil(_histTotal / PAGE_SIZE);
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+    const prevDisabled = _histPage <= 1 ? 'disabled' : '';
+    const nextDisabled = _histPage >= totalPages ? 'disabled' : '';
+
+    container.innerHTML = `
+      <div class="pagination">
+        <button class="btn btn-sm btn-secondary" ${prevDisabled}
+          onclick="UI.goToPage(${_histPage - 1})">← Anterior</button>
+        <span class="page-info">Página ${_histPage} de ${totalPages}</span>
+        <button class="btn btn-sm btn-secondary" ${nextDisabled}
+          onclick="UI.goToPage(${_histPage + 1})">Siguiente →</button>
+      </div>`;
+  }
+
+  async function goToPage(page) {
+    setLoading(true);
+    await renderHistorial(_histFilters, page);
+    setLoading(false);
+    document.getElementById('section-historial')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ─── Selects con búsqueda ─────────────────────────────────────────────────
   async function populateAuxiliarSelect(selectId, soloActivos = true) {
-    const sel = document.getElementById(selectId);
+    const wrapper = document.getElementById(selectId + '-wrapper');
+    const sel     = document.getElementById(selectId);
     if (!sel) return;
+
     const auxiliares = await DB.getAuxiliares(soloActivos);
     const current    = sel.value;
-    sel.innerHTML    = '<option value="">-- Seleccione auxiliar --</option>' +
+
+    sel.innerHTML = '<option value="">-- Seleccione auxiliar --</option>' +
       auxiliares.map(a =>
         `<option value="${a.id}">${escapeHtml(a.nombre)} (CC: ${escapeHtml(a.cedula)})</option>`
       ).join('');
     if (current) sel.value = current;
+
+    // Activar búsqueda si hay wrapper
+    if (wrapper) {
+      const searchInput = wrapper.querySelector('.aux-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const q = searchInput.value.toLowerCase();
+          Array.from(sel.options).forEach(opt => {
+            if (!opt.value) return;
+            opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+          });
+        });
+      }
+    }
   }
 
   async function populateClientePrestamos(selectId) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
-    const estado   = await DB.getEstado();
+    const estado    = await DB.getEstado();
     const prestamos = estado.canastas_clientes_prestadas || [];
+    const current   = sel.value;
     if (prestamos.length === 0) {
       sel.innerHTML = '<option value="">-- No hay préstamos activos --</option>';
       return;
     }
-    const current = sel.value;
     sel.innerHTML = '<option value="">-- Seleccione préstamo --</option>' +
       prestamos.map(p => {
         const fecha = DB.formatFecha(p.fecha_entrada);
@@ -283,17 +356,14 @@ const UI = (() => {
     if (current) sel.value = current;
   }
 
-  // ─── Configuración ─────────────────────────────────────────────────────────
-
+  // ─── Configuración ────────────────────────────────────────────────────────
   async function renderConfiguracion() {
-    const config  = await DB.getConfig();
     const estado  = await DB.getEstado();
     const inputEl = document.getElementById('config-inventario');
     if (inputEl) inputEl.value = estado.canastas_en_bodega;
   }
 
-  // ─── Helper ────────────────────────────────────────────────────────────────
-
+  // ─── Helpers ──────────────────────────────────────────────────────────────
   function escapeHtml(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -305,20 +375,10 @@ const UI = (() => {
   }
 
   return {
-    toast,
-    showModal,
-    closeModal,
-    setLoading,
-    showSection,
-    renderDashboard,
-    renderAuxiliares,
-    renderHistorial,
-    renderMovimientoRow,
-    populateAuxiliarSelect,
-    populateClientePrestamos,
-    renderConfiguracion,
-    escapeHtml,
-    TIPO_LABELS,
-    TIPO_BADGE,
+    toast, showModal, closeModal, setLoading, showSection,
+    renderDashboard, renderAuxiliares, renderHistorial, goToPage,
+    renderMovimientoRow, populateAuxiliarSelect, populateClientePrestamos,
+    renderConfiguracion, escapeHtml, getSemaforo,
+    TIPO_LABELS, TIPO_BADGE,
   };
 })();

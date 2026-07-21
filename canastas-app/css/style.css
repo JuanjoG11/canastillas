@@ -507,3 +507,48 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
   text-align: center; padding: 3rem 1rem; color: var(--gray-500);
 }
 .empty-state .empty-icon { font-size: 3rem; display: block; margin-bottom: .75rem; }
+
+/* ─── Semáforo de canastas ──────────────────────────────────────────────────── */
+.semaforo {
+  display: inline-block;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  margin-right: .35rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+  border: 1.5px solid rgba(0,0,0,.12);
+}
+.semaforo-green  { background: #22C55E; }
+.semaforo-yellow { background: #F59E0B; }
+.semaforo-red    { background: #EF4444; }
+.semaforo-gray   { background: #9CA3AF; }
+
+.semaforo-legend {
+  display: flex; gap: 1rem; flex-wrap: wrap;
+  font-size: .78rem; color: var(--gray-500);
+  margin-bottom: 1rem; align-items: center;
+}
+.semaforo-legend span { display: flex; align-items: center; }
+
+/* ─── Búsqueda de auxiliar ──────────────────────────────────────────────────── */
+.aux-search {
+  margin-bottom: .375rem;
+  background: var(--gray-50);
+}
+
+/* ─── Paginación ────────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: .75rem; flex-wrap: wrap;
+}
+.page-info {
+  font-size: .875rem; color: var(--gray-500);
+  white-space: nowrap;
+}
+
+/* ─── Tabla historial turno col ─────────────────────────────────────────────── */
+.data-table th:nth-child(6),
+.data-table td:nth-child(6) {
+  white-space: nowrap;
+  font-size: .8125rem;
+}

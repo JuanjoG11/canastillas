@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="Control de inventario de canastas para auxiliares y clientes" />
   <meta name="theme-color" content="#2563EB" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,9 +15,7 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════════
-     LOGIN SCREEN
-════════════════════════════════════════════════════════════ -->
+<!-- LOGIN -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -26,33 +23,24 @@
       <h1>Control de Canastas</h1>
       <p>Sistema de gestión de inventario</p>
     </div>
-
     <div id="login-error" class="login-error hidden"></div>
-
     <form id="login-form" novalidate>
       <div class="form-group">
         <label for="login-username">Usuario</label>
-        <input id="login-username" class="form-control" type="text"
-               placeholder="Ingrese su usuario" autocomplete="username" required />
+        <input id="login-username" class="form-control" type="text" placeholder="Ingrese su usuario" autocomplete="username" required />
       </div>
       <div class="form-group">
         <label for="login-password">Contraseña</label>
-        <input id="login-password" class="form-control" type="password"
-               placeholder="Ingrese su contraseña" autocomplete="current-password" required />
+        <input id="login-password" class="form-control" type="password" placeholder="Ingrese su contraseña" autocomplete="current-password" required />
       </div>
-      <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:.5rem">
-        Iniciar Sesión
-      </button>
+      <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:.5rem">Iniciar Sesión</button>
     </form>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     APP SCREEN
-════════════════════════════════════════════════════════════ -->
+<!-- APP -->
 <div id="app-screen" class="hidden">
 
-  <!-- Top bar -->
   <header class="topbar">
     <div class="topbar-brand">
       <span class="brand-icon">🧺</span>
@@ -66,35 +54,21 @@
 
   <div class="app-body">
 
-    <!-- ── Sidebar (desktop) ── -->
     <nav class="sidebar">
       <div class="sidebar-label">Menú</div>
-      <button class="nav-item" data-nav="dashboard">
-        <span class="nav-icon">📊</span> Dashboard
-      </button>
-      <button class="nav-item" data-nav="movimiento">
-        <span class="nav-icon">↔️</span> Registrar Movimiento
-      </button>
-      <button class="nav-item" data-nav="auxiliares">
-        <span class="nav-icon">👷</span> Auxiliares
-      </button>
-      <button class="nav-item" data-nav="historial">
-        <span class="nav-icon">📋</span> Historial
-      </button>
+      <button class="nav-item" data-nav="dashboard"><span class="nav-icon">📊</span> Dashboard</button>
+      <button class="nav-item" data-nav="movimiento"><span class="nav-icon">↔️</span> Registrar Movimiento</button>
+      <button class="nav-item" data-nav="auxiliares"><span class="nav-icon">👷</span> Auxiliares</button>
+      <button class="nav-item" data-nav="historial"><span class="nav-icon">📋</span> Historial</button>
       <div class="nav-separator"></div>
-      <button class="nav-item" data-nav="configuracion">
-        <span class="nav-icon">⚙️</span> Configuración
-      </button>
+      <button class="nav-item" data-nav="configuracion"><span class="nav-icon">⚙️</span> Configuración</button>
     </nav>
 
-    <!-- ── Main content ── -->
     <main class="main-content">
 
-      <!-- ─────────────── DASHBOARD ─────────────── -->
+      <!-- ── DASHBOARD ── -->
       <section id="section-dashboard" class="section">
         <h2 class="section-title"><span class="section-icon">📊</span> Dashboard</h2>
-
-        <!-- Stat cards -->
         <div class="stats-grid">
           <div class="stat-card bodega">
             <div class="stat-label">En Bodega</div>
@@ -118,7 +92,13 @@
           </div>
         </div>
 
-        <!-- Breakdowns -->
+        <!-- Leyenda semáforo -->
+        <div class="semaforo-legend">
+          <span><span class="semaforo semaforo-green"></span> Salió hoy</span>
+          <span><span class="semaforo semaforo-yellow"></span> 1-2 días</span>
+          <span><span class="semaforo semaforo-red"></span> +3 días</span>
+        </div>
+
         <div class="dashboard-grid">
           <div class="card">
             <div class="card-title">👷 Canastas por Auxiliar</div>
@@ -129,88 +109,91 @@
             <div id="clientes-breakdown"></div>
           </div>
         </div>
-
-        <!-- Recent movements -->
         <div class="card" style="margin-top:1rem">
           <div class="card-title">🕐 Últimos 10 Movimientos</div>
           <div id="recent-movements"></div>
         </div>
       </section>
 
-      <!-- ─────────────── REGISTRAR MOVIMIENTO ─────────────── -->
+      <!-- ── REGISTRAR MOVIMIENTO ── -->
       <section id="section-movimiento" class="section">
         <h2 class="section-title"><span class="section-icon">↔️</span> Registrar Movimiento</h2>
 
-        <!-- Tabs -->
         <div class="mov-tabs">
-          <button class="mov-tab" data-mov-tab="salida-auxiliar">
-            <span class="tab-icon">📤</span>Salida a Auxiliar
-          </button>
-          <button class="mov-tab" data-mov-tab="entrada-auxiliar">
-            <span class="tab-icon">📥</span>Entrada de Auxiliar
-          </button>
-          <button class="mov-tab" data-mov-tab="entrada-cliente">
-            <span class="tab-icon">🏢</span>Entrada Cliente
-          </button>
-          <button class="mov-tab" data-mov-tab="salida-cliente">
-            <span class="tab-icon">🔄</span>Salida a Cliente
-          </button>
+          <button class="mov-tab" data-mov-tab="salida-auxiliar"><span class="tab-icon">📤</span>Salida Auxiliar</button>
+          <button class="mov-tab" data-mov-tab="entrada-auxiliar"><span class="tab-icon">📥</span>Entrada Auxiliar</button>
+          <button class="mov-tab" data-mov-tab="entrada-cliente"><span class="tab-icon">🏢</span>Entrada Cliente</button>
+          <button class="mov-tab" data-mov-tab="salida-cliente"><span class="tab-icon">🔄</span>Salida Cliente</button>
         </div>
 
         <!-- Panel: Salida a Auxiliar -->
         <div id="panel-salida-auxiliar" class="mov-panel card">
           <h3 class="card-title">📤 Salida de Canastas a Auxiliar</h3>
-          <p class="text-muted mb-1">Registra canastas que salen con un auxiliar. Deben regresar a bodega.</p>
+          <p class="text-muted mb-1">Canastas que salen con un auxiliar. Deben regresar a bodega.</p>
           <hr class="divider" />
           <form id="form-salida-auxiliar" novalidate>
             <div class="form-group">
-              <label for="salida-aux-select">Auxiliar *</label>
-              <select id="salida-aux-select" class="form-control" required>
+              <label>Auxiliar *</label>
+              <input class="form-control aux-search" data-for="salida-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
+              <select id="salida-aux-select" class="form-control" required size="1">
                 <option value="">-- Seleccione auxiliar --</option>
               </select>
             </div>
-            <div class="form-group">
-              <label for="salida-aux-cantidad">Cantidad de canastas *</label>
-              <input id="salida-aux-cantidad" class="form-control" type="number"
-                     min="1" placeholder="0" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="salida-aux-cantidad">Cantidad *</label>
+                <input id="salida-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
+              </div>
+              <div class="form-group">
+                <label for="salida-aux-turno">Turno *</label>
+                <select id="salida-aux-turno" class="form-control" required>
+                  <option value="mañana">🌅 Mañana</option>
+                  <option value="tarde">🌤️ Tarde</option>
+                  <option value="noche">🌙 Noche</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label for="salida-aux-notas">Notas</label>
-              <textarea id="salida-aux-notas" class="form-control"
-                        placeholder="Observaciones opcionales..."></textarea>
+              <textarea id="salida-aux-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
             </div>
-            <button type="submit" class="btn btn-primary btn-block">
-              ✓ Registrar Salida
-            </button>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Salida</button>
           </form>
         </div>
 
         <!-- Panel: Entrada de Auxiliar -->
         <div id="panel-entrada-auxiliar" class="mov-panel card hidden">
           <h3 class="card-title">📥 Entrada de Canastas de Auxiliar</h3>
-          <p class="text-muted mb-1">Registra la devolución de canastas por parte de un auxiliar.</p>
+          <p class="text-muted mb-1">Devolución de canastas por parte de un auxiliar.</p>
           <hr class="divider" />
           <form id="form-entrada-auxiliar" novalidate>
             <div class="form-group">
-              <label for="entrada-aux-select">Auxiliar *</label>
+              <label>Auxiliar *</label>
+              <input class="form-control aux-search" data-for="entrada-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
               <select id="entrada-aux-select" class="form-control" required>
                 <option value="">-- Seleccione auxiliar --</option>
               </select>
             </div>
             <div id="entrada-aux-info" class="field-info hidden mb-1"></div>
-            <div class="form-group">
-              <label for="entrada-aux-cantidad">Cantidad a devolver *</label>
-              <input id="entrada-aux-cantidad" class="form-control" type="number"
-                     min="1" placeholder="0" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="entrada-aux-cantidad">Cantidad a devolver *</label>
+                <input id="entrada-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
+              </div>
+              <div class="form-group">
+                <label for="entrada-aux-turno">Turno *</label>
+                <select id="entrada-aux-turno" class="form-control" required>
+                  <option value="mañana">🌅 Mañana</option>
+                  <option value="tarde">🌤️ Tarde</option>
+                  <option value="noche">🌙 Noche</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label for="entrada-aux-notas">Notas</label>
-              <textarea id="entrada-aux-notas" class="form-control"
-                        placeholder="Observaciones opcionales..."></textarea>
+              <textarea id="entrada-aux-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
             </div>
-            <button type="submit" class="btn btn-success btn-block">
-              ✓ Registrar Entrada
-            </button>
+            <button type="submit" class="btn btn-success btn-block btn-lg">✓ Registrar Entrada</button>
           </form>
         </div>
 
@@ -222,22 +205,27 @@
           <form id="form-entrada-cliente" novalidate>
             <div class="form-group">
               <label for="entrada-cliente-nombre">Nombre del cliente *</label>
-              <input id="entrada-cliente-nombre" class="form-control" type="text"
-                     placeholder="Ej: Distribuciones Pérez" required />
+              <input id="entrada-cliente-nombre" class="form-control" type="text" placeholder="Ej: Distribuciones Pérez" required />
             </div>
-            <div class="form-group">
-              <label for="entrada-cliente-cantidad">Cantidad de canastas *</label>
-              <input id="entrada-cliente-cantidad" class="form-control" type="number"
-                     min="1" placeholder="0" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="entrada-cliente-cantidad">Cantidad *</label>
+                <input id="entrada-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
+              </div>
+              <div class="form-group">
+                <label for="entrada-cliente-turno">Turno *</label>
+                <select id="entrada-cliente-turno" class="form-control" required>
+                  <option value="mañana">🌅 Mañana</option>
+                  <option value="tarde">🌤️ Tarde</option>
+                  <option value="noche">🌙 Noche</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label for="entrada-cliente-notas">Notas</label>
-              <textarea id="entrada-cliente-notas" class="form-control"
-                        placeholder="Observaciones opcionales..."></textarea>
+              <textarea id="entrada-cliente-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
             </div>
-            <button type="submit" class="btn btn-primary btn-block">
-              ✓ Registrar Préstamo
-            </button>
+            <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Préstamo</button>
           </form>
         </div>
 
@@ -248,71 +236,65 @@
           <hr class="divider" />
           <form id="form-salida-cliente" novalidate>
             <div class="form-group">
-              <label for="salida-cliente-select">Seleccionar préstamo activo *</label>
+              <label for="salida-cliente-select">Préstamo activo *</label>
               <select id="salida-cliente-select" class="form-control" required>
                 <option value="">-- Seleccione préstamo --</option>
               </select>
             </div>
             <div id="salida-cliente-info" class="field-info hidden mb-1"></div>
-            <div class="form-group">
-              <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
-              <input id="salida-cliente-cantidad" class="form-control" type="number"
-                     min="1" placeholder="0" required />
+            <div class="form-row">
+              <div class="form-group">
+                <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
+                <input id="salida-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
+              </div>
+              <div class="form-group">
+                <label for="salida-cliente-turno">Turno *</label>
+                <select id="salida-cliente-turno" class="form-control" required>
+                  <option value="mañana">🌅 Mañana</option>
+                  <option value="tarde">🌤️ Tarde</option>
+                  <option value="noche">🌙 Noche</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label for="salida-cliente-notas">Notas</label>
-              <textarea id="salida-cliente-notas" class="form-control"
-                        placeholder="Observaciones opcionales..."></textarea>
+              <textarea id="salida-cliente-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
             </div>
-            <button type="submit" class="btn btn-warning btn-block"
-                    style="background:var(--warning);color:var(--white);">
-              ✓ Registrar Devolución
-            </button>
+            <button type="submit" class="btn btn-block btn-lg" style="background:var(--warning);color:var(--white);">✓ Registrar Devolución</button>
           </form>
         </div>
       </section>
 
-      <!-- ─────────────── AUXILIARES ─────────────── -->
+      <!-- ── AUXILIARES ── -->
       <section id="section-auxiliares" class="section">
         <h2 class="section-title"><span class="section-icon">👷</span> Auxiliares</h2>
-
         <div class="auxiliares-layout">
-          <!-- Form -->
           <div>
             <div class="card">
               <h3 class="card-title" id="form-auxiliar-title">Nuevo Auxiliar</h3>
               <form id="form-auxiliar" novalidate>
                 <div class="form-group">
                   <label for="aux-nombre">Nombre completo *</label>
-                  <input id="aux-nombre" class="form-control" type="text"
-                         placeholder="Ej: Carlos Gómez" required />
+                  <input id="aux-nombre" class="form-control" type="text" placeholder="Ej: Carlos Gómez" required />
                 </div>
                 <div class="form-group">
                   <label for="aux-cedula">Cédula *</label>
-                  <input id="aux-cedula" class="form-control" type="text"
-                         placeholder="Ej: 12345678" required />
+                  <input id="aux-cedula" class="form-control" type="text" placeholder="Ej: 12345678" required />
                 </div>
                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                  <button type="submit" class="btn btn-primary" style="flex:1;">
-                    Guardar
-                  </button>
-                  <button type="button" id="btn-cancel-auxiliar"
-                          class="btn btn-secondary hidden" style="flex:1;">
-                    Cancelar
-                  </button>
+                  <button type="submit" class="btn btn-primary" style="flex:1;">Guardar</button>
+                  <button type="button" id="btn-cancel-auxiliar" class="btn btn-secondary hidden" style="flex:1;">Cancelar</button>
                 </div>
               </form>
             </div>
           </div>
-
-          <!-- List -->
           <div>
             <div id="auxiliares-list"></div>
           </div>
         </div>
       </section>
 
-      <!-- ─────────────── HISTORIAL ─────────────── -->
+      <!-- ── HISTORIAL ── -->
       <section id="section-historial" class="section">
         <h2 class="section-title"><span class="section-icon">📋</span> Historial de Movimientos</h2>
 
@@ -329,7 +311,7 @@
             <div class="form-group" style="margin-bottom:0">
               <label for="filter-tipo">Tipo</label>
               <select id="filter-tipo" class="form-control">
-                <option value="todos">Todos los tipos</option>
+                <option value="todos">Todos</option>
                 <option value="salida_auxiliar">Salida a Auxiliar</option>
                 <option value="entrada_auxiliar">Entrada de Auxiliar</option>
                 <option value="entrada_cliente">Entrada de Cliente</option>
@@ -343,21 +325,15 @@
               </select>
             </div>
           </div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-            <button id="btn-apply-filters" class="btn btn-primary btn-sm">
-              🔍 Aplicar filtros
-            </button>
-            <button id="btn-clear-filters" class="btn btn-secondary btn-sm">
-              ✕ Limpiar
-            </button>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+            <button id="btn-apply-filters" class="btn btn-primary btn-sm">🔍 Filtrar</button>
+            <button id="btn-clear-filters" class="btn btn-secondary btn-sm">✕ Limpiar</button>
           </div>
         </div>
 
         <div class="historial-actions">
           <span id="historial-count" class="text-muted small"></span>
-          <button id="btn-export-csv" class="btn btn-outline btn-sm">
-            ⬇ Exportar CSV
-          </button>
+          <button id="btn-export-csv" class="btn btn-outline btn-sm">⬇ Exportar CSV</button>
         </div>
 
         <div class="table-wrapper">
@@ -367,88 +343,62 @@
                 <th>Referencia</th>
                 <th>Fecha</th>
                 <th>Tipo</th>
-                <th>Cantidad</th>
+                <th>Cant.</th>
                 <th>Responsable</th>
+                <th>Turno</th>
                 <th>Admin</th>
                 <th>Notas</th>
               </tr>
             </thead>
             <tbody id="historial-tbody">
-              <tr><td colspan="7" class="text-center text-muted">Cargando...</td></tr>
+              <tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Paginación -->
+        <div id="historial-pagination" style="margin-top:1rem;"></div>
       </section>
 
-      <!-- ─────────────── CONFIGURACIÓN ─────────────── -->
+      <!-- ── CONFIGURACIÓN ── -->
       <section id="section-configuracion" class="section">
         <h2 class="section-title"><span class="section-icon">⚙️</span> Configuración</h2>
-
         <div class="config-section">
           <div class="card">
             <h3 class="card-title">📦 Inventario en Bodega</h3>
-            <p class="text-muted mb-1">
-              Establece el número de canastas disponibles actualmente en bodega.
-              Útil para ajustes manuales o para inicializar el sistema.
-            </p>
+            <p class="text-muted mb-1">Ajusta manualmente el número de canastas en bodega.</p>
             <hr class="divider" />
             <form id="form-config" novalidate>
               <div class="form-group">
                 <label for="config-inventario">Canastas en bodega</label>
-                <input id="config-inventario" class="form-control" type="number"
-                       min="0" placeholder="0" required />
+                <input id="config-inventario" class="form-control" type="number" min="0" placeholder="0" required />
               </div>
-              <button type="submit" class="btn btn-primary">
-                Actualizar inventario
-              </button>
+              <button type="submit" class="btn btn-primary">Actualizar inventario</button>
             </form>
           </div>
-
           <div class="danger-zone">
             <div class="danger-zone-title">⚠️ Zona de peligro</div>
-            <p>
-              Reiniciar todos los datos eliminará todos los movimientos, auxiliares
-              y el estado actual. Se cargará el estado inicial de demostración.
-            </p>
-            <button id="btn-reset-data" class="btn btn-danger btn-sm">
-              🗑 Reiniciar todos los datos
-            </button>
+            <p>Reiniciar eliminará todos los movimientos y reseteará el estado al inicial.</p>
+            <button id="btn-reset-data" class="btn btn-danger btn-sm">🗑 Reiniciar todos los datos</button>
           </div>
         </div>
       </section>
 
-    </main><!-- /main-content -->
-  </div><!-- /app-body -->
+    </main>
+  </div>
 
-  <!-- Bottom navigation (mobile) -->
+  <!-- Bottom nav -->
   <nav class="bottom-nav">
-    <button class="nav-item" data-nav="dashboard">
-      <span class="nav-icon">📊</span>
-      Dashboard
-    </button>
-    <button class="nav-item" data-nav="movimiento">
-      <span class="nav-icon">↔️</span>
-      Movimiento
-    </button>
-    <button class="nav-item" data-nav="auxiliares">
-      <span class="nav-icon">👷</span>
-      Auxiliares
-    </button>
-    <button class="nav-item" data-nav="historial">
-      <span class="nav-icon">📋</span>
-      Historial
-    </button>
-    <button class="nav-item" data-nav="configuracion">
-      <span class="nav-icon">⚙️</span>
-      Config
-    </button>
+    <button class="nav-item" data-nav="dashboard"><span class="nav-icon">📊</span>Dashboard</button>
+    <button class="nav-item" data-nav="movimiento"><span class="nav-icon">↔️</span>Movimiento</button>
+    <button class="nav-item" data-nav="auxiliares"><span class="nav-icon">👷</span>Auxiliares</button>
+    <button class="nav-item" data-nav="historial"><span class="nav-icon">📋</span>Historial</button>
+    <button class="nav-item" data-nav="configuracion"><span class="nav-icon">⚙️</span>Config</button>
   </nav>
 
-</div><!-- /app-screen -->
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     MODAL
-════════════════════════════════════════════════════════════ -->
+<!-- Modal -->
 <div id="modal-overlay" class="modal-overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div id="modal-title" class="modal-title"></div>
@@ -460,19 +410,12 @@
   </div>
 </div>
 
-<!-- Toast container -->
 <div id="toast-container" aria-live="polite"></div>
+<div id="global-spinner" class="hidden"><div class="spinner"></div></div>
 
-<!-- Global spinner -->
-<div id="global-spinner" class="hidden">
-  <div class="spinner"></div>
-</div>
-
-<!-- Scripts -->
 <script src="js/db.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
-
 </body>
 </html>
