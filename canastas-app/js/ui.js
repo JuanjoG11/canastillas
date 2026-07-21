@@ -19,7 +19,7 @@ const UI = (() => {
     salida_cliente:   'badge-red',
   };
 
-  const TURNO_ICONS = { 'mañana': '🌅', 'tarde': '🌤️', 'noche': '🌙' };
+
 
   // ─── Estado de paginación ─────────────────────────────────────────────────
   let _histPage     = 1;
@@ -134,17 +134,24 @@ const UI = (() => {
       }).join('');
     }
 
-    // Clientes breakdown
+    // Clientes breakdown — muestra auxiliar responsable
     const clientesEl = document.getElementById('clientes-breakdown');
     const prestamos  = estado.canastas_clientes_prestadas || [];
     if (prestamos.length === 0) {
       clientesEl.innerHTML = '<p class="text-muted small">No hay préstamos activos de clientes</p>';
     } else {
-      clientesEl.innerHTML = prestamos.map(p => `
-        <div class="breakdown-row">
-          <span class="breakdown-name">${escapeHtml(p.cliente)}</span>
+      clientesEl.innerHTML = prestamos.map(p => {
+        const auxNombre = p.auxiliar_id
+          ? (auxiliares.find(a => a.id === p.auxiliar_id)?.nombre || '')
+          : '';
+        return `<div class="breakdown-row">
+          <span class="breakdown-name">
+            ${escapeHtml(p.cliente)}
+            ${auxNombre ? `<span class="text-muted small"> · ${escapeHtml(auxNombre)}</span>` : ''}
+          </span>
           <span class="badge badge-orange">${p.cantidad} 🧺</span>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     // Movimientos recientes
@@ -167,13 +174,11 @@ const UI = (() => {
     const auxMap = {};
     (auxiliares || []).forEach(a => { auxMap[a.id] = a.nombre; });
     const responsable = m.auxiliar_id ? (auxMap[m.auxiliar_id] || m.auxiliar_id) : (m.cliente_nombre || '—');
-    const turnoIcon   = TURNO_ICONS[m.turno] || '';
     return `<div class="movement-row">
       <div class="movement-ref">${escapeHtml(m.referencia_numero)}</div>
       <div class="movement-info">
         <span class="badge ${TIPO_BADGE[m.tipo] || 'badge-blue'}">${TIPO_LABELS[m.tipo] || m.tipo}</span>
         <span class="movement-responsable">${escapeHtml(responsable)}</span>
-        ${turnoIcon ? `<span title="${escapeHtml(m.turno || '')}">${turnoIcon}</span>` : ''}
       </div>
       <div class="movement-meta">
         <span class="movement-cantidad">${m.cantidad} 🧺</span>
@@ -264,15 +269,14 @@ const UI = (() => {
     tableBody.innerHTML = movimientos.map(m => {
       const responsable = m.auxiliar_id
         ? (auxMap[m.auxiliar_id] || m.auxiliar_id)
-        : (m.cliente_nombre || '—');
-      const turnoIcon = TURNO_ICONS[m.turno] || '';
+        : '—';
       return `<tr>
         <td><span class="ref-number">${escapeHtml(m.referencia_numero)}</span></td>
         <td>${DB.formatFecha(m.fecha)}</td>
         <td><span class="badge ${TIPO_BADGE[m.tipo] || 'badge-blue'}">${TIPO_LABELS[m.tipo] || m.tipo}</span></td>
         <td class="text-center"><strong>${m.cantidad}</strong></td>
         <td>${escapeHtml(responsable)}</td>
-        <td>${turnoIcon} ${escapeHtml(m.turno || '')}</td>
+        <td>${escapeHtml(m.cliente_nombre || '—')}</td>
         <td>${escapeHtml(m.admin_registrador)}</td>
         <td class="notas-cell" title="${escapeHtml(m.notas || '')}">${escapeHtml(m.notas || '—')}</td>
       </tr>`;

@@ -92,7 +92,6 @@
           </div>
         </div>
 
-        <!-- Leyenda semáforo -->
         <div class="semaforo-legend">
           <span><span class="semaforo semaforo-green"></span> Salió hoy</span>
           <span><span class="semaforo semaforo-yellow"></span> 1-2 días</span>
@@ -135,23 +134,13 @@
             <div class="form-group">
               <label>Auxiliar *</label>
               <input class="form-control aux-search" data-for="salida-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
-              <select id="salida-aux-select" class="form-control" required size="1">
+              <select id="salida-aux-select" class="form-control" required>
                 <option value="">-- Seleccione auxiliar --</option>
               </select>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="salida-aux-cantidad">Cantidad *</label>
-                <input id="salida-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-              </div>
-              <div class="form-group">
-                <label for="salida-aux-turno">Turno *</label>
-                <select id="salida-aux-turno" class="form-control" required>
-                  <option value="mañana">🌅 Mañana</option>
-                  <option value="tarde">🌤️ Tarde</option>
-                  <option value="noche">🌙 Noche</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label for="salida-aux-cantidad">Cantidad de canastas *</label>
+              <input id="salida-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
             </div>
             <div class="form-group">
               <label for="salida-aux-notas">Notas</label>
@@ -175,19 +164,9 @@
               </select>
             </div>
             <div id="entrada-aux-info" class="field-info hidden mb-1"></div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="entrada-aux-cantidad">Cantidad a devolver *</label>
-                <input id="entrada-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-              </div>
-              <div class="form-group">
-                <label for="entrada-aux-turno">Turno *</label>
-                <select id="entrada-aux-turno" class="form-control" required>
-                  <option value="mañana">🌅 Mañana</option>
-                  <option value="tarde">🌤️ Tarde</option>
-                  <option value="noche">🌙 Noche</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label for="entrada-aux-cantidad">Cantidad a devolver *</label>
+              <input id="entrada-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
             </div>
             <div class="form-group">
               <label for="entrada-aux-notas">Notas</label>
@@ -197,29 +176,26 @@
           </form>
         </div>
 
-        <!-- Panel: Entrada Cliente -->
+        <!-- Panel: Entrada Cliente (amarrado a auxiliar) -->
         <div id="panel-entrada-cliente" class="mov-panel card hidden">
           <h3 class="card-title">🏢 Entrada de Canastas de Cliente</h3>
-          <p class="text-muted mb-1">Un cliente deja canastas prestadas a la empresa.</p>
+          <p class="text-muted mb-1">Un cliente deja canastas. El auxiliar que las recibe queda como responsable.</p>
           <hr class="divider" />
           <form id="form-entrada-cliente" novalidate>
             <div class="form-group">
               <label for="entrada-cliente-nombre">Nombre del cliente *</label>
               <input id="entrada-cliente-nombre" class="form-control" type="text" placeholder="Ej: Distribuciones Pérez" required />
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="entrada-cliente-cantidad">Cantidad *</label>
-                <input id="entrada-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-              </div>
-              <div class="form-group">
-                <label for="entrada-cliente-turno">Turno *</label>
-                <select id="entrada-cliente-turno" class="form-control" required>
-                  <option value="mañana">🌅 Mañana</option>
-                  <option value="tarde">🌤️ Tarde</option>
-                  <option value="noche">🌙 Noche</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label>Auxiliar responsable *</label>
+              <input class="form-control aux-search" data-for="entrada-cliente-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
+              <select id="entrada-cliente-aux-select" class="form-control" required>
+                <option value="">-- Seleccione auxiliar --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="entrada-cliente-cantidad">Cantidad de canastas *</label>
+              <input id="entrada-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
             </div>
             <div class="form-group">
               <label for="entrada-cliente-notas">Notas</label>
@@ -229,10 +205,10 @@
           </form>
         </div>
 
-        <!-- Panel: Salida a Cliente -->
+        <!-- Panel: Salida a Cliente (amarrado a auxiliar) -->
         <div id="panel-salida-cliente" class="mov-panel card hidden">
           <h3 class="card-title">🔄 Devolución de Canastas a Cliente</h3>
-          <p class="text-muted mb-1">Regresa canastas que el cliente había prestado a la empresa.</p>
+          <p class="text-muted mb-1">Regresa canastas al cliente. Selecciona el préstamo activo y el auxiliar que las entrega.</p>
           <hr class="divider" />
           <form id="form-salida-cliente" novalidate>
             <div class="form-group">
@@ -242,19 +218,16 @@
               </select>
             </div>
             <div id="salida-cliente-info" class="field-info hidden mb-1"></div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
-                <input id="salida-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-              </div>
-              <div class="form-group">
-                <label for="salida-cliente-turno">Turno *</label>
-                <select id="salida-cliente-turno" class="form-control" required>
-                  <option value="mañana">🌅 Mañana</option>
-                  <option value="tarde">🌤️ Tarde</option>
-                  <option value="noche">🌙 Noche</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label>Auxiliar que devuelve *</label>
+              <input class="form-control aux-search" data-for="salida-cliente-aux-select" type="text" placeholder="🔍 Buscar auxiliar..." autocomplete="off" />
+              <select id="salida-cliente-aux-select" class="form-control" required>
+                <option value="">-- Seleccione auxiliar --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
+              <input id="salida-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
             </div>
             <div class="form-group">
               <label for="salida-cliente-notas">Notas</label>
@@ -288,9 +261,7 @@
               </form>
             </div>
           </div>
-          <div>
-            <div id="auxiliares-list"></div>
-          </div>
+          <div><div id="auxiliares-list"></div></div>
         </div>
       </section>
 
@@ -344,8 +315,8 @@
                 <th>Fecha</th>
                 <th>Tipo</th>
                 <th>Cant.</th>
-                <th>Responsable</th>
-                <th>Turno</th>
+                <th>Auxiliar</th>
+                <th>Cliente</th>
                 <th>Admin</th>
                 <th>Notas</th>
               </tr>
@@ -355,8 +326,6 @@
             </tbody>
           </table>
         </div>
-
-        <!-- Paginación -->
         <div id="historial-pagination" style="margin-top:1rem;"></div>
       </section>
 
@@ -387,7 +356,6 @@
     </main>
   </div>
 
-  <!-- Bottom nav -->
   <nav class="bottom-nav">
     <button class="nav-item" data-nav="dashboard"><span class="nav-icon">📊</span>Dashboard</button>
     <button class="nav-item" data-nav="movimiento"><span class="nav-icon">↔️</span>Movimiento</button>

@@ -5,20 +5,14 @@
 
 const APP = (() => {
 
-  let currentSection    = 'dashboard';
   let editingAuxiliarId = null;
   let historialFilters  = {};
 
   // ─── Bootstrap ─────────────────────────────────────────────────────────────
   async function init() {
     UI.setLoading(true);
-    try { await DB.init(); } catch (e) { console.warn('DB init warning:', e); }
-
-    if (AUTH.isLoggedIn()) {
-      await showApp();
-    } else {
-      showLogin();
-    }
+    try { await DB.init(); } catch (e) { console.warn('DB init:', e); }
+    if (AUTH.isLoggedIn()) { await showApp(); } else { showLogin(); }
     bindGlobalEvents();
     UI.setLoading(false);
   }
@@ -48,15 +42,15 @@ const APP = (() => {
       tab.addEventListener('click', () => switchMovTab(tab.dataset.movTab))
     );
 
-    document.getElementById('form-salida-auxiliar').addEventListener('submit', handleSalidaAuxiliar);
+    document.getElementById('form-salida-auxiliar').addEventListener('submit',  handleSalidaAuxiliar);
     document.getElementById('form-entrada-auxiliar').addEventListener('submit', handleEntradaAuxiliar);
-    document.getElementById('form-entrada-cliente').addEventListener('submit', handleEntradaCliente);
-    document.getElementById('form-salida-cliente').addEventListener('submit', handleSalidaCliente);
+    document.getElementById('form-entrada-cliente').addEventListener('submit',  handleEntradaCliente);
+    document.getElementById('form-salida-cliente').addEventListener('submit',   handleSalidaCliente);
 
     document.getElementById('entrada-aux-select').addEventListener('change', updateEntradaAuxInfo);
     document.getElementById('salida-cliente-select').addEventListener('change', updateSalidaClienteInfo);
 
-    // Búsqueda rápida de auxiliar (filtra el select en tiempo real)
+    // Búsqueda rápida en cualquier campo con clase aux-search
     document.querySelectorAll('.aux-search').forEach(input => {
       const selectId = input.dataset.for;
       input.addEventListener('input', () => {
@@ -74,15 +68,13 @@ const APP = (() => {
     document.getElementById('btn-cancel-auxiliar').addEventListener('click', resetAuxiliarForm);
 
     document.getElementById('btn-apply-filters').addEventListener('click', applyHistorialFilters);
-    document.getElementById('btn-clear-filters').addEventListener('click', clearHistorialFilters);
-    document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+    document.getElementById('btn-clear-filters').addEventListener('click',  clearHistorialFilters);
+    document.getElementById('btn-export-csv').addEventListener('click',     exportCSV);
 
-    document.getElementById('form-config').addEventListener('submit', handleConfigSubmit);
+    document.getElementById('form-config').addEventListener('submit',  handleConfigSubmit);
     document.getElementById('btn-reset-data').addEventListener('click', handleResetData);
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -114,20 +106,17 @@ const APP = (() => {
 
   // ─── Navegación ────────────────────────────────────────────────────────────
   async function navigateTo(section) {
-    currentSection = section;
     UI.showSection(section);
     UI.setLoading(true);
     try {
       switch (section) {
-        case 'dashboard':    await UI.renderDashboard(); break;
-        case 'movimiento':   await switchMovTab('salida-auxiliar'); break;
-        case 'auxiliares':   await UI.renderAuxiliares(); resetAuxiliarForm(); break;
-        case 'historial':    await populateHistorialFilters(); await UI.renderHistorial(historialFilters, 1); break;
-        case 'configuracion': await UI.renderConfiguracion(); break;
+        case 'dashboard':     await UI.renderDashboard();                                            break;
+        case 'movimiento':    await switchMovTab('salida-auxiliar');                                 break;
+        case 'auxiliares':    await UI.renderAuxiliares(); resetAuxiliarForm();                      break;
+        case 'historial':     await populateHistorialFilters(); await UI.renderHistorial(historialFilters, 1); break;
+        case 'configuracion': await UI.renderConfiguracion();                                        break;
       }
-    } catch (err) {
-      UI.toast('Error cargando sección: ' + err.message, 'error');
-    }
+    } catch (err) { UI.toast('Error: ' + err.message, 'error'); }
     UI.setLoading(false);
   }
 
@@ -140,9 +129,23 @@ const APP = (() => {
       p.classList.toggle('hidden', p.id !== `panel-${tab}`)
     );
     try {
-      if (tab === 'salida-auxiliar')  await UI.populateAuxiliarSelect('salida-aux-select');
-      if (tab === 'entrada-auxiliar') { await UI.populateAuxiliarSelect('entrada-aux-select'); await updateEntradaAuxInfo(); }
-      if (tab === 'salida-cliente')   { await UI.populateClientePrestamos('salida-cliente-select'); await updateSalidaClienteInfo(); }
+      switch (tab) {
+        case 'salida-auxiliar':
+          await UI.populateAuxiliarSelect('salida-aux-select');
+          break;
+        case 'entrada-auxiliar':
+          await UI.populateAuxiliarSelect('entrada-aux-select');
+          await updateEntradaAuxInfo();
+          break;
+        case 'entrada-cliente':
+          await UI.populateAuxiliarSelect('entrada-cliente-aux-select');
+          break;
+        case 'salida-cliente':
+          await UI.populateClientePrestamos('salida-cliente-select');
+          await UI.populateAuxiliarSelect('salida-cliente-aux-select');
+          await updateSalidaClienteInfo();
+          break;
+      }
     } catch (err) { console.warn('switchMovTab:', err); }
   }
 
@@ -168,7 +171,11 @@ const APP = (() => {
       const estado   = await DB.getEstado();
       const prestamo = (estado.canastas_clientes_prestadas || []).find(p => p.id === pid);
       if (prestamo) {
-        infoEl.textContent = `Préstamo de ${prestamo.cliente}: ${prestamo.cantidad} canastas disponibles`;
+        const auxNombre = prestamo.auxiliar_id
+          ? (await DB.getAuxiliarById(prestamo.auxiliar_id))?.nombre || ''
+          : '';
+        const auxStr = auxNombre ? ` — Gestionado por: ${auxNombre}` : '';
+        infoEl.textContent = `${prestamo.cliente}: ${prestamo.cantidad} canastas${auxStr}`;
         infoEl.classList.remove('hidden');
         const ci = document.getElementById('salida-cliente-cantidad');
         if (ci) ci.max = prestamo.cantidad;
@@ -176,52 +183,48 @@ const APP = (() => {
     } catch {}
   }
 
-  // ─── Confirmación de movimiento ────────────────────────────────────────────
-  // Construye un resumen legible antes de confirmar
-  async function buildConfirmBody({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id, turno }) {
+  // ─── Confirmación ──────────────────────────────────────────────────────────
+  async function buildConfirmBody({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id }) {
     const tipoLabel = UI.TIPO_LABELS[tipo] || tipo;
-    const turnoStr  = turno ? ` — Turno <strong>${turno}</strong>` : '';
     let quien = '';
 
     if (auxiliar_id) {
       const aux = await DB.getAuxiliarById(auxiliar_id);
-      quien = aux ? `con <strong>${UI.escapeHtml(aux.nombre)}</strong>` : '';
-    } else if (cliente_prestamo_id) {
+      if (aux) quien = ` con <strong>${UI.escapeHtml(aux.nombre)}</strong>`;
+    }
+    if (cliente_prestamo_id) {
       const estado   = await DB.getEstado();
       const prestamo = (estado.canastas_clientes_prestadas || []).find(p => p.id === cliente_prestamo_id);
-      quien = prestamo ? `para <strong>${UI.escapeHtml(prestamo.cliente)}</strong>` : '';
-    } else if (cliente_nombre) {
-      quien = `de <strong>${UI.escapeHtml(cliente_nombre)}</strong>`;
+      if (prestamo) quien += ` — cliente: <strong>${UI.escapeHtml(prestamo.cliente)}</strong>`;
+    }
+    if (cliente_nombre && !cliente_prestamo_id) {
+      quien += ` — cliente: <strong>${UI.escapeHtml(cliente_nombre)}</strong>`;
     }
 
-    return `¿Registrar <strong>${tipoLabel}</strong> de <strong>${cantidad} canastas</strong> ${quien}${turnoStr}?`;
+    return `¿Registrar <strong>${tipoLabel}</strong> de <strong>${cantidad} canastas</strong>${quien}?`;
   }
 
-  // ─── Handlers de movimiento con confirmación ───────────────────────────────
+  // ─── Handlers de movimiento ────────────────────────────────────────────────
   async function handleSalidaAuxiliar(e) {
     e.preventDefault();
-    const data = {
+    await confirmarYRegistrar({
       tipo:        'salida_auxiliar',
       cantidad:    document.getElementById('salida-aux-cantidad').value,
       auxiliar_id: document.getElementById('salida-aux-select').value,
-      turno:       document.getElementById('salida-aux-turno').value,
       notas:       document.getElementById('salida-aux-notas').value,
-    };
-    await confirmarYRegistrar(data, 'form-salida-auxiliar', async () => {
+    }, 'form-salida-auxiliar', async () => {
       await UI.populateAuxiliarSelect('salida-aux-select');
     });
   }
 
   async function handleEntradaAuxiliar(e) {
     e.preventDefault();
-    const data = {
+    await confirmarYRegistrar({
       tipo:        'entrada_auxiliar',
       cantidad:    document.getElementById('entrada-aux-cantidad').value,
       auxiliar_id: document.getElementById('entrada-aux-select').value,
-      turno:       document.getElementById('entrada-aux-turno').value,
       notas:       document.getElementById('entrada-aux-notas').value,
-    };
-    await confirmarYRegistrar(data, 'form-entrada-auxiliar', async () => {
+    }, 'form-entrada-auxiliar', async () => {
       await UI.populateAuxiliarSelect('entrada-aux-select');
       await updateEntradaAuxInfo();
     });
@@ -229,48 +232,42 @@ const APP = (() => {
 
   async function handleEntradaCliente(e) {
     e.preventDefault();
-    const data = {
+    await confirmarYRegistrar({
       tipo:           'entrada_cliente',
       cantidad:       document.getElementById('entrada-cliente-cantidad').value,
       cliente_nombre: document.getElementById('entrada-cliente-nombre').value,
-      turno:          document.getElementById('entrada-cliente-turno').value,
+      auxiliar_id:    document.getElementById('entrada-cliente-aux-select').value,
       notas:          document.getElementById('entrada-cliente-notas').value,
-    };
-    await confirmarYRegistrar(data, 'form-entrada-cliente');
+    }, 'form-entrada-cliente', async () => {
+      await UI.populateAuxiliarSelect('entrada-cliente-aux-select');
+    });
   }
 
   async function handleSalidaCliente(e) {
     e.preventDefault();
-    const data = {
+    await confirmarYRegistrar({
       tipo:                'salida_cliente',
       cantidad:            document.getElementById('salida-cliente-cantidad').value,
       cliente_prestamo_id: document.getElementById('salida-cliente-select').value,
-      turno:               document.getElementById('salida-cliente-turno').value,
+      auxiliar_id:         document.getElementById('salida-cliente-aux-select').value,
       notas:               document.getElementById('salida-cliente-notas').value,
-    };
-    await confirmarYRegistrar(data, 'form-salida-cliente', async () => {
+    }, 'form-salida-cliente', async () => {
       await UI.populateClientePrestamos('salida-cliente-select');
+      await UI.populateAuxiliarSelect('salida-cliente-aux-select');
       await updateSalidaClienteInfo();
     });
   }
 
   async function confirmarYRegistrar(data, formId, afterSuccess = null) {
-    // Validación básica antes de mostrar modal
-    if (!data.cantidad || parseInt(data.cantidad) <= 0) {
-      UI.toast('Ingresa una cantidad válida', 'error'); return;
-    }
-    if ((data.tipo === 'salida_auxiliar' || data.tipo === 'entrada_auxiliar') && !data.auxiliar_id) {
+    // Validaciones rápidas
+    if (!data.cantidad || parseInt(data.cantidad) <= 0) { UI.toast('Ingresa una cantidad válida', 'error'); return; }
+    if (['salida_auxiliar','entrada_auxiliar','entrada_cliente','salida_cliente'].includes(data.tipo) && !data.auxiliar_id) {
       UI.toast('Selecciona un auxiliar', 'error'); return;
     }
-    if (data.tipo === 'entrada_cliente' && !data.cliente_nombre?.trim()) {
-      UI.toast('Ingresa el nombre del cliente', 'error'); return;
-    }
-    if (data.tipo === 'salida_cliente' && !data.cliente_prestamo_id) {
-      UI.toast('Selecciona el préstamo del cliente', 'error'); return;
-    }
+    if (data.tipo === 'entrada_cliente' && !data.cliente_nombre?.trim()) { UI.toast('Ingresa el nombre del cliente', 'error'); return; }
+    if (data.tipo === 'salida_cliente' && !data.cliente_prestamo_id) { UI.toast('Selecciona el préstamo', 'error'); return; }
 
     const body = await buildConfirmBody(data);
-
     UI.showModal({
       title: '¿Confirmar movimiento?',
       body,
@@ -280,17 +277,14 @@ const APP = (() => {
         UI.setLoading(true);
         try {
           DB.invalidateCache();
-          const mov = await DB.registrarMovimiento({
-            ...data,
-            admin_registrador: AUTH.getCurrentUser(),
-          });
+          const mov = await DB.registrarMovimiento({ ...data, admin_registrador: AUTH.getCurrentUser() });
           UI.toast(`✓ Registrado: ${mov.referencia_numero}`, 'success');
           document.getElementById(formId).reset();
+          // Limpiar búsquedas
+          document.querySelectorAll('.aux-search').forEach(i => i.value = '');
           document.querySelectorAll('.field-info').forEach(el => el.classList.add('hidden'));
           if (afterSuccess) await afterSuccess();
-        } catch (err) {
-          UI.toast(err.message, 'error');
-        }
+        } catch (err) { UI.toast(err.message, 'error'); }
         UI.setLoading(false);
       },
     });
@@ -302,7 +296,6 @@ const APP = (() => {
     const nombre = document.getElementById('aux-nombre').value.trim();
     const cedula = document.getElementById('aux-cedula').value.trim();
     if (!nombre || !cedula) { UI.toast('Nombre y cédula son obligatorios', 'error'); return; }
-
     UI.setLoading(true);
     try {
       if (editingAuxiliarId) {
@@ -400,8 +393,7 @@ const APP = (() => {
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = url;
-      a.download = `canastas-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.href = url; a.download = `canastas-${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
       UI.toast('CSV exportado', 'success');
@@ -431,8 +423,7 @@ const APP = (() => {
     UI.showModal({
       title: '⚠️ Reiniciar Todos los Datos',
       body: '<p><strong>Se eliminarán TODOS los movimientos</strong> y el estado volverá a cero.</p><p style="margin-top:.5rem"><strong>No se puede deshacer.</strong></p>',
-      confirmLabel: 'Reiniciar',
-      danger: true,
+      confirmLabel: 'Reiniciar', danger: true,
       onConfirm: async () => {
         UI.setLoading(true);
         try { await DB.resetData(); UI.toast('Datos reiniciados', 'success'); await UI.renderConfiguracion(); }
