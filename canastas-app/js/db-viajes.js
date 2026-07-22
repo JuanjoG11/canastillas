@@ -38,7 +38,7 @@ const DB_VIAJES = (() => {
 
   // ─── Conductores ───────────────────────────────────────────────────────────
   async function getConductores(soloActivos = false) {
-    if (_conductoresCache) {
+    if (_conductoresCache && _conductoresCache.length > 0) {
       return soloActivos ? _conductoresCache.filter(c => c.activo) : _conductoresCache;
     }
     const data = await GET('/conductores?order=nombre.asc');

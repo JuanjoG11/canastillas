@@ -144,15 +144,18 @@ const APP = (() => {
   // ─── Formulario nuevo despacho ─────────────────────────────────────────────
   async function abrirFormularioDespacho() {
     UI.setLoading(true);
+    // Forzar recarga desde Supabase, sin cache
+    DB_VIAJES.invalidateCache();
+    DB.invalidateCache();
     let conductores = [], auxiliares = [];
     try {
       [conductores, auxiliares] = await Promise.all([
-        DB_VIAJES.getConductores(false),   // todos, sin filtrar por activo
+        DB_VIAJES.getConductores(false),
         DB.getAuxiliares(false),
       ]);
     } catch (err) {
       UI.setLoading(false);
-      UI.toast('Error al cargar conductores/auxiliares: ' + err.message, 'error');
+      UI.toast('Error al cargar datos: ' + err.message, 'error');
       return;
     }
     UI.setLoading(false);
@@ -172,22 +175,32 @@ const APP = (() => {
       <form id="form-despacho" novalidate>
         <div class="form-group">
           <label>Conductor *</label>
-          <input id="desp-conductor-txt" class="form-control" type="text"
-            placeholder="🔍 Buscar conductor por nombre..." autocomplete="off" />
-          <input type="hidden" id="desp-conductor" />
-          <div id="desp-conductor-list" class="inline-search-list hidden"></div>
+          <div style="position:relative">
+            <input id="desp-conductor-txt" class="form-control" type="text"
+              placeholder="🔍 Escribe el nombre del conductor..." autocomplete="off" />
+            <input type="hidden" id="desp-conductor" />
+            <div id="desp-conductor-list" class="inline-search-list hidden"></div>
+          </div>
+          <div id="desp-conductor-nuevo" class="hidden" style="margin-top:.5rem">
+            <button type="button" id="btn-crear-conductor" class="btn btn-outline btn-sm">
+              + Crear conductor nuevo
+            </button>
+          </div>
         </div>
         <div class="form-group">
           <label>Auxiliar *</label>
-          <input id="desp-auxiliar-txt" class="form-control" type="text"
-            placeholder="🔍 Buscar auxiliar por nombre o cédula..." autocomplete="off" />
-          <input type="hidden" id="desp-auxiliar" />
-          <div id="desp-auxiliar-list" class="inline-search-list hidden"></div>
+          <div style="position:relative">
+            <input id="desp-auxiliar-txt" class="form-control" type="text"
+              placeholder="🔍 Escribe nombre o cédula del auxiliar..." autocomplete="off" />
+            <input type="hidden" id="desp-auxiliar" />
+            <div id="desp-auxiliar-list" class="inline-search-list hidden"></div>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label>Placa *</label>
-            <input id="desp-placa" class="form-control" type="text" placeholder="Ej: SWK 856" required />
+            <input id="desp-placa" class="form-control" type="text"
+              placeholder="Ej: SWK 856" autocomplete="off" />
           </div>
           <div class="form-group">
             <label>Remolque</label>
@@ -226,13 +239,52 @@ const APP = (() => {
       </form>
     `);
 
-    // ── Autocomplete conductor ──────────────────────────────────────────────
-    _bindInlineSearch('desp-conductor-txt', 'desp-conductor-list', 'desp-conductor',
-      conductores, c => c.nombre, c => c.cedula ? `CC: ${c.cedula}` : '');
+    // Autocomplete conductor
+    _bindInlineSearch(
+      'desp-conductor-txt', 'desp-conductor-list', 'desp-conductor',
+      conductores,
+      c => c.nombre,
+      c => c.cedula ? `CC: ${c.cedula}` : '',
+      // callback cuando no hay coincidencia: mostrar botón "crear"
+      (query) => {
+        const nuevoDiv = document.getElementById('desp-conductor-nuevo');
+        if (!nuevoDiv) return;
+        if (query.trim().length >= 3) {
+          nuevoDiv.classList.remove('hidden');
+          const btn = document.getElementById('btn-crear-conductor');
+          if (btn) btn.textContent = `+ Crear "${query.trim()}"`;
+        } else {
+          nuevoDiv.classList.add('hidden');
+        }
+      }
+    );
 
-    // ── Autocomplete auxiliar ───────────────────────────────────────────────
-    _bindInlineSearch('desp-auxiliar-txt', 'desp-auxiliar-list', 'desp-auxiliar',
-      auxiliares, a => a.nombre, a => `CC: ${a.cedula}`);
+    // Crear conductor al vuelo
+    document.getElementById('btn-crear-conductor')?.addEventListener('click', async () => {
+      const nombre = document.getElementById('desp-conductor-txt').value.trim();
+      if (!nombre) return;
+      const cedula = prompt(`Cédula de ${nombre} (puede ser temporal):`);
+      if (cedula === null) return;
+      UI.setLoading(true);
+      try {
+        const nuevo = await DB_VIAJES.addConductor(nombre.toUpperCase(), cedula.trim() || Date.now().toString());
+        conductores.push(nuevo);
+        DB_VIAJES.invalidateCache();
+        document.getElementById('desp-conductor').value = nuevo.id;
+        document.getElementById('desp-conductor-txt').value = nuevo.nombre;
+        document.getElementById('desp-conductor-nuevo').classList.add('hidden');
+        UI.toast(`Conductor "${nuevo.nombre}" creado`, 'success');
+      } catch (err) { UI.toast(err.message, 'error'); }
+      UI.setLoading(false);
+    });
+
+    // Autocomplete auxiliar
+    _bindInlineSearch(
+      'desp-auxiliar-txt', 'desp-auxiliar-list', 'desp-auxiliar',
+      auxiliares,
+      a => a.nombre,
+      a => `CC: ${a.cedula}`
+    );
 
     document.getElementById('form-despacho').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -540,7 +592,7 @@ const APP = (() => {
   }
 
   // ─── Helper: búsqueda inline para selects en drawer ──────────────────────
-  function _bindInlineSearch(inputId, listId, hiddenId, items, labelFn, sublabelFn) {
+  function _bindInlineSearch(inputId, listId, hiddenId, items, labelFn, sublabelFn, onNoMatch) {
     const input  = document.getElementById(inputId);
     const list   = document.getElementById(listId);
     const hidden = document.getElementById(hiddenId);
@@ -551,10 +603,12 @@ const APP = (() => {
         ? items.filter(i => labelFn(i).toLowerCase().includes(q.toLowerCase()) ||
                             (sublabelFn(i) || '').toLowerCase().includes(q.toLowerCase()))
         : items;
+
       if (filtered.length === 0) {
-        list.innerHTML = '<div class="isl-empty">Sin resultados</div>';
+        list.innerHTML = `<div class="isl-empty">${q ? `Sin resultados para "${q}"` : 'Sin datos disponibles'}</div>`;
+        if (onNoMatch) onNoMatch(q);
       } else {
-        list.innerHTML = filtered.slice(0, 30).map(i =>
+        list.innerHTML = filtered.slice(0, 40).map(i =>
           `<div class="isl-item" data-id="${i.id}">
             <span class="isl-label">${UI.escapeHtml(labelFn(i))}</span>
             <span class="isl-sub">${UI.escapeHtml(sublabelFn(i) || '')}</span>
@@ -563,11 +617,10 @@ const APP = (() => {
         list.querySelectorAll('.isl-item').forEach(el => {
           el.addEventListener('mousedown', (e) => {
             e.preventDefault();
-            const id  = el.dataset.id;
-            const lbl = el.querySelector('.isl-label').textContent;
-            hidden.value = id;
-            input.value  = lbl;
+            hidden.value = el.dataset.id;
+            input.value  = el.querySelector('.isl-label').textContent;
             list.classList.add('hidden');
+            if (onNoMatch) onNoMatch(''); // ocultar botón crear
           });
         });
       }
@@ -580,11 +633,7 @@ const APP = (() => {
       renderList(input.value);
     });
     input.addEventListener('blur', () => {
-      setTimeout(() => list.classList.add('hidden'), 150);
-    });
-    // Si el valor escrito no corresponde a ningún item, limpiar el hidden
-    input.addEventListener('blur', () => {
-      if (!hidden.value) input.value = '';
+      setTimeout(() => list.classList.add('hidden'), 200);
     });
   }
 

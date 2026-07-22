@@ -47,7 +47,7 @@ const DB = (() => {
 
   // ─── Auxiliares ────────────────────────────────────────────────────────────
   async function getAuxiliares(soloActivos = false) {
-    if (_auxiliaresCache) {
+    if (_auxiliaresCache && _auxiliaresCache.length > 0) {
       return soloActivos ? _auxiliaresCache.filter(a => a.activo) : _auxiliaresCache;
     }
     const data = await GET('/auxiliares?order=nombre.asc');
