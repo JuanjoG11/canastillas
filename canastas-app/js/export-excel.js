@@ -68,16 +68,11 @@ const EXCEL = (() => {
       },
     };
   }
-        border:    border(),
-        alignment: align('center', 'center'),
-      },
-    };
-  }
 
   // ── Función principal ─────────────────────────────────────────────────────
   async function exportarViajes(filtros = {}) {
     if (typeof XLSX === 'undefined') {
-      throw new Error('Librería XLSX no cargada. Verifica la conexión a internet.');
+      throw new Error('La librería Excel no está disponible. Verifica tu conexión a internet y recarga la página.');
     }
 
     const [viajes, conductores, auxiliares, inventario] = await Promise.all([
