@@ -136,52 +136,65 @@ const UI_VIAJES = (() => {
     // Agrupar por semana (lunes)
     const semanas = {};
     viajes.forEach(v => {
-      const d = new Date(v.fecha + 'T00:00:00');
-      const dow = d.getDay() || 7; // 1=lun 7=dom
+      const d   = new Date(v.fecha + 'T00:00:00');
+      const dow = d.getDay() || 7;
       const lunes = new Date(d); lunes.setDate(d.getDate() - dow + 1);
       const key = lunes.toISOString().split('T')[0];
-      if (!semanas[key]) semanas[key] = { desp: 0, ret: 0, pendientes: 0 };
-      const tot = (v.desp_grandes||0)+(v.desp_medianas||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
-      semanas[key].desp += tot;
-      if (v.ret_grandes !== null) {
-        const totR = (v.ret_grandes||0)+(v.ret_medianas||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
-        semanas[key].ret += totR;
-      } else {
-        semanas[key].pendientes++;
-      }
+      if (!semanas[key]) semanas[key] = { desp: 0, ret: 0 };
+      semanas[key].desp += (v.desp_grandes||0)+(v.desp_medianas||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
+      if (v.ret_grandes !== null)
+        semanas[key].ret += (v.ret_grandes||0)+(v.ret_medianas||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
     });
 
-    const keys = Object.keys(semanas).sort().slice(-6);
+    const keys = Object.keys(semanas).sort().slice(-8);
     if (keys.length === 0) { el.innerHTML = '<p class="text-muted small">Sin datos para graficar</p>'; return; }
 
-    const maxVal = Math.max(...keys.map(k => semanas[k].desp), 1);
-    const W = 100 / keys.length;
-    const BAR_H = 80;
+    const maxVal = Math.max(...keys.flatMap(k => [semanas[k].desp, semanas[k].ret]), 1);
+    const W      = 520;           // ancho total SVG
+    const H      = 140;           // alto área de barras
+    const PAD_L  = 42;            // margen izquierdo (eje Y)
+    const PAD_B  = 28;            // margen inferior (eje X)
+    const PAD_T  = 10;
+    const PAD_R  = 10;
+    const chartW = W - PAD_L - PAD_R;
+    const chartH = H - PAD_T - PAD_B;
+    const grpW   = chartW / keys.length;
+    const barW   = Math.max(6, Math.min(22, grpW * 0.32));
+
+    // Líneas guía Y
+    const yLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
+      const y = PAD_T + chartH * (1 - f);
+      const val = Math.round(maxVal * f);
+      return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="#E5E7EB" stroke-width="1"/>
+              <text x="${PAD_L - 4}" y="${y + 4}" text-anchor="end" font-size="9" fill="#9CA3AF">${val}</text>`;
+    }).join('');
 
     const bars = keys.map((k, i) => {
-      const s = semanas[k];
-      const hD = (s.desp / maxVal) * BAR_H;
-      const hR = (s.ret  / maxVal) * BAR_H;
-      const x  = i * W + W * 0.1;
-      const bw = W * 0.38;
+      const s  = semanas[k];
+      const cx = PAD_L + grpW * i + grpW / 2;
+      const hD = (s.desp / maxVal) * chartH;
+      const hR = (s.ret  / maxVal) * chartH;
       const label = k.slice(5); // MM-DD
       return `
-        <rect x="${x}%" y="${BAR_H - hD}%" width="${bw}%" height="${hD}%" fill="#2563EB" rx="2" opacity=".85">
-          <title>Desp: ${s.desp}</title>
-        </rect>
-        <rect x="${x + W*0.42}%" y="${BAR_H - hR}%" width="${bw}%" height="${hR}%" fill="#16A34A" rx="2" opacity=".85">
-          <title>Ret: ${s.ret}</title>
-        </rect>
-        <text x="${x + W*0.4}%" y="98%" text-anchor="middle" font-size="7" fill="#6B7280">${label}</text>`;
+        <rect x="${cx - barW - 1}" y="${PAD_T + chartH - hD}" width="${barW}" height="${hD}" fill="#2563EB" rx="3" opacity=".88"/>
+        <rect x="${cx + 1}"        y="${PAD_T + chartH - hR}" width="${barW}" height="${hR}" fill="#16A34A" rx="3" opacity=".88"/>
+        <text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="8.5" fill="#6B7280">${label}</text>
+        <title>Semana ${k}: Desp ${s.desp} · Ret ${s.ret}</title>`;
     }).join('');
 
     el.innerHTML = `
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:120px;display:block">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:160px;display:block;overflow:visible">
+        ${yLines}
+        <line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T + chartH}" stroke="#D1D5DB" stroke-width="1"/>
         ${bars}
       </svg>
-      <div style="display:flex;gap:1rem;margin-top:.375rem;font-size:.72rem;color:var(--gray-500)">
-        <span><span style="display:inline-block;width:10px;height:10px;background:#2563EB;border-radius:2px;margin-right:3px"></span>Despachado</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#16A34A;border-radius:2px;margin-right:3px"></span>Retornado</span>
+      <div style="display:flex;gap:1.25rem;margin-top:.5rem;font-size:.75rem;color:var(--gray-500);padding-left:${PAD_L}px">
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="display:inline-block;width:12px;height:12px;background:#2563EB;border-radius:3px"></span>Despachado
+        </span>
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="display:inline-block;width:12px;height:12px;background:#16A34A;border-radius:3px"></span>Retornado
+        </span>
       </div>`;
   }
 
