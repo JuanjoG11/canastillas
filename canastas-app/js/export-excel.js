@@ -58,11 +58,16 @@ const EXCEL = (() => {
   function numCell(v, fgColor, bold, fontColor) {
     const n = (v === null || v === undefined || v === '') ? null : Number(v);
     return {
-      v: n,
-      t: n === null ? 's' : 'n',
+      v:  n === null ? '' : n,
+      t:  n === null ? 's' : 'n',
       s: {
         fill:      fill(fgColor || C.blanco),
         font:      font(bold, fontColor || C.negro, 10),
+        border:    border(),
+        alignment: align('center', 'center'),
+      },
+    };
+  }
         border:    border(),
         alignment: align('center', 'center'),
       },
@@ -99,7 +104,7 @@ const EXCEL = (() => {
     _crearHojaPorConductor(wb, rows, condMap);
 
     const fecha = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `Canastas_${fecha}.xlsx`);
+    XLSX.writeFile(wb, `Canastas_${fecha}.xlsx`, { bookType: 'xlsx', type: 'binary' });
   }
 
   // ── Hoja 1: Detalle de viajes ─────────────────────────────────────────────
