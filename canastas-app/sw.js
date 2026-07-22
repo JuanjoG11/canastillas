@@ -4,8 +4,8 @@
  * Network-first strategy for dynamic data.
  */
 
-const CACHE_NAME = 'canastas-v1.0.0';
-const CACHE_STATIC_NAME = 'canastas-static-v1.0.0';
+const CACHE_NAME = 'canastas-v2.0.0';
+const CACHE_STATIC_NAME = 'canastas-static-v2.0.0';
 
 // App shell files to pre-cache
 const APP_SHELL = [
@@ -13,8 +13,11 @@ const APP_SHELL = [
   './index.html',
   './css/style.css',
   './js/db.js',
+  './js/db-viajes.js',
   './js/auth.js',
+  './js/firma.js',
   './js/ui.js',
+  './js/ui-viajes.js',
   './js/app.js',
   './manifest.json',
 ];
@@ -108,8 +111,9 @@ async function networkFirst(request) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isAppShell(url) {
-  const appPaths = ['/index.html', '/css/style.css', '/js/db.js', '/js/auth.js',
-                    '/js/ui.js', '/js/app.js', '/manifest.json'];
+  const appPaths = ['/index.html', '/css/style.css', '/js/db.js', '/js/db-viajes.js',
+                    '/js/auth.js', '/js/firma.js', '/js/ui.js', '/js/ui-viajes.js',
+                    '/js/app.js', '/manifest.json'];
   return url.pathname === '/' ||
          url.pathname.endsWith('/') ||
          appPaths.some(p => url.pathname.endsWith(p));

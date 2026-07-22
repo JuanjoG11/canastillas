@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#2563EB" />
+  <meta name="theme-color" content="#1E3A5F" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Canastas" />
@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
   <link rel="stylesheet" href="css/style.css" />
-  <title>Control de Canastas</title>
+  <title>Control de Canastas · Alpina</title>
 </head>
 <body>
 
@@ -21,7 +21,7 @@
     <div class="login-logo">
       <div class="logo-icon">🧺</div>
       <h1>Control de Canastas</h1>
-      <p>Sistema de gestión de inventario</p>
+      <p>Sistema de gestión de despachos</p>
     </div>
     <div id="login-error" class="login-error hidden"></div>
     <form id="login-form" novalidate>
@@ -55,11 +55,14 @@
   <div class="app-body">
 
     <nav class="sidebar">
-      <div class="sidebar-label">Menú</div>
+      <div class="sidebar-label">Principal</div>
       <button class="nav-item" data-nav="dashboard"><span class="nav-icon">📊</span> Dashboard</button>
-      <button class="nav-item" data-nav="movimiento"><span class="nav-icon">↔️</span> Registrar Movimiento</button>
+      <button class="nav-item" data-nav="viajes"><span class="nav-icon">🚛</span> Viajes</button>
+      <button class="nav-item" data-nav="retornos"><span class="nav-icon">📥</span> Registrar Retorno</button>
+      <div class="nav-separator"></div>
+      <div class="sidebar-label">Catálogos</div>
+      <button class="nav-item" data-nav="conductores"><span class="nav-icon">🧑‍✈️</span> Conductores</button>
       <button class="nav-item" data-nav="auxiliares"><span class="nav-icon">👷</span> Auxiliares</button>
-      <button class="nav-item" data-nav="historial"><span class="nav-icon">📋</span> Historial</button>
       <div class="nav-separator"></div>
       <button class="nav-item" data-nav="configuracion"><span class="nav-icon">⚙️</span> Configuración</button>
     </nav>
@@ -69,273 +72,179 @@
       <!-- ── DASHBOARD ── -->
       <section id="section-dashboard" class="section">
         <h2 class="section-title"><span class="section-icon">📊</span> Dashboard</h2>
-        <div class="stats-grid">
-          <div class="stat-card bodega">
-            <div class="stat-label">En Bodega</div>
-            <div class="stat-value" id="stat-bodega">—</div>
-            <div class="stat-sub">canastas disponibles</div>
+
+        <!-- KPIs por tipo de envase -->
+        <div class="kpi-row" id="kpi-row"></div>
+
+        <div class="dashboard-grid-2" style="margin-top:1.25rem">
+          <!-- Viajes abiertos -->
+          <div class="card">
+            <div class="card-title-row">
+              <span class="card-title">🚛 Viajes sin retorno</span>
+              <span class="badge badge-orange" id="dash-abiertos-count">0</span>
+            </div>
+            <div id="dash-viajes-abiertos"></div>
           </div>
-          <div class="stat-card auxiliar">
-            <div class="stat-label">Con Auxiliares</div>
-            <div class="stat-value" id="stat-auxiliares">—</div>
-            <div class="stat-sub">canastas fuera</div>
-          </div>
-          <div class="stat-card cliente">
-            <div class="stat-label">Préstamos Clientes</div>
-            <div class="stat-value" id="stat-clientes">—</div>
-            <div class="stat-sub">canastas de clientes</div>
-          </div>
-          <div class="stat-card total">
-            <div class="stat-label">Total Sistema</div>
-            <div class="stat-value" id="stat-total">—</div>
-            <div class="stat-sub">canastas en total</div>
+          <!-- Resumen diferencia acumulada -->
+          <div class="card">
+            <div class="card-title">📉 Diferencia acumulada</div>
+            <div id="dash-diferencia"></div>
           </div>
         </div>
 
-        <div class="semaforo-legend">
-          <span><span class="semaforo semaforo-green"></span> Salió hoy</span>
-          <span><span class="semaforo semaforo-yellow"></span> 1-2 días</span>
-          <span><span class="semaforo semaforo-red"></span> +3 días</span>
-        </div>
-
-        <div class="dashboard-grid">
-          <div class="card">
-            <div class="card-title">👷 Canastas por Auxiliar</div>
-            <div id="auxiliares-breakdown"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">🏢 Préstamos de Clientes</div>
-            <div id="clientes-breakdown"></div>
-          </div>
-        </div>
+        <!-- Últimos 8 viajes -->
         <div class="card" style="margin-top:1rem">
-          <div class="card-title">🕐 Últimos 10 Movimientos</div>
-          <div id="recent-movements"></div>
+          <div class="card-title">🕐 Últimos despachos</div>
+          <div id="dash-ultimos-viajes"></div>
         </div>
       </section>
 
-      <!-- ── REGISTRAR MOVIMIENTO ── -->
-      <section id="section-movimiento" class="section">
-        <h2 class="section-title"><span class="section-icon">↔️</span> Registrar Movimiento</h2>
-
-        <div class="mov-tabs">
-          <button class="mov-tab" data-mov-tab="salida-auxiliar"><span class="tab-icon">📤</span>Salida Auxiliar</button>
-          <button class="mov-tab" data-mov-tab="entrada-auxiliar"><span class="tab-icon">📥</span>Entrada Auxiliar</button>
-          <button class="mov-tab" data-mov-tab="entrada-cliente"><span class="tab-icon">🏢</span>Entrada Cliente</button>
-          <button class="mov-tab" data-mov-tab="salida-cliente"><span class="tab-icon">🔄</span>Salida Cliente</button>
+      <!-- ── VIAJES (DESPACHO) ── -->
+      <section id="section-viajes" class="section">
+        <div class="section-header-row">
+          <h2 class="section-title"><span class="section-icon">🚛</span> Viajes</h2>
+          <button id="btn-nuevo-viaje" class="btn btn-primary btn-sm">+ Nuevo despacho</button>
         </div>
 
-        <!-- Panel: Salida a Auxiliar -->
-        <div id="panel-salida-auxiliar" class="mov-panel card">
-          <h3 class="card-title">📤 Salida de Canastas a Auxiliar</h3>
-          <p class="text-muted mb-1">Canastas que salen con un auxiliar. Deben regresar a bodega.</p>
-          <hr class="divider" />
-          <form id="form-salida-auxiliar" novalidate>
-            <div class="form-group autocomplete-container" data-aux-target="salida-aux-select">
-              <label for="salida-aux-input">Auxiliar *</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="salida-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
-                <input type="hidden" id="salida-aux-select" required />
-                <div class="autocomplete-dropdown hidden" id="salida-aux-dropdown"></div>
-              </div>
+        <!-- Filtros -->
+        <div class="card" style="margin-bottom:1rem;padding:.875rem 1rem">
+          <div class="viajes-filters">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="vf-desde">Desde</label>
+              <input id="vf-desde" class="form-control" type="date" />
             </div>
-            <div class="form-group">
-              <label for="salida-aux-cantidad">Cantidad de canastas *</label>
-              <input id="salida-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
+            <div class="form-group" style="margin-bottom:0">
+              <label for="vf-hasta">Hasta</label>
+              <input id="vf-hasta" class="form-control" type="date" />
             </div>
-            <div class="form-group">
-              <label for="salida-aux-notas">Notas</label>
-              <textarea id="salida-aux-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Salida</button>
-          </form>
-        </div>
-
-        <!-- Panel: Entrada de Auxiliar -->
-        <div id="panel-entrada-auxiliar" class="mov-panel card hidden">
-          <h3 class="card-title">📥 Entrada de Canastas de Auxiliar</h3>
-          <p class="text-muted mb-1">Devolución de canastas por parte de un auxiliar.</p>
-          <hr class="divider" />
-          <form id="form-entrada-auxiliar" novalidate>
-            <div class="form-group autocomplete-container" data-aux-target="entrada-aux-select">
-              <label for="entrada-aux-input">Auxiliar *</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="entrada-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
-                <input type="hidden" id="entrada-aux-select" required />
-                <div class="autocomplete-dropdown hidden" id="entrada-aux-dropdown"></div>
-              </div>
-            </div>
-            <div id="entrada-aux-info" class="field-info hidden mb-1"></div>
-            <div class="form-group">
-              <label for="entrada-aux-cantidad">Cantidad a devolver *</label>
-              <input id="entrada-aux-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-            </div>
-            <div class="form-group">
-              <label for="entrada-aux-notas">Notas</label>
-              <textarea id="entrada-aux-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-success btn-block btn-lg">✓ Registrar Entrada</button>
-          </form>
-        </div>
-
-        <!-- Panel: Entrada Cliente (amarrado a auxiliar) -->
-        <div id="panel-entrada-cliente" class="mov-panel card hidden">
-          <h3 class="card-title">🏢 Entrada de Canastas de Cliente</h3>
-          <p class="text-muted mb-1">Un cliente deja canastas. El auxiliar que las recibe queda como responsable.</p>
-          <hr class="divider" />
-          <form id="form-entrada-cliente" novalidate>
-            <div class="form-group">
-              <label for="entrada-cliente-nombre">Nombre del cliente *</label>
-              <input id="entrada-cliente-nombre" class="form-control" type="text" placeholder="Ej: Distribuciones Pérez" required />
-            </div>
-            <div class="form-group autocomplete-container" data-aux-target="entrada-cliente-aux-select">
-              <label for="entrada-cliente-aux-input">Auxiliar responsable *</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="entrada-cliente-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
-                <input type="hidden" id="entrada-cliente-aux-select" required />
-                <div class="autocomplete-dropdown hidden" id="entrada-cliente-aux-dropdown"></div>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="entrada-cliente-cantidad">Cantidad de canastas *</label>
-              <input id="entrada-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-            </div>
-            <div class="form-group">
-              <label for="entrada-cliente-notas">Notas</label>
-              <textarea id="entrada-cliente-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Préstamo</button>
-          </form>
-        </div>
-
-        <!-- Panel: Salida a Cliente (amarrado a auxiliar) -->
-        <div id="panel-salida-cliente" class="mov-panel card hidden">
-          <h3 class="card-title">🔄 Devolución de Canastas a Cliente</h3>
-          <p class="text-muted mb-1">Regresa canastas al cliente. Selecciona el préstamo activo y el auxiliar que las entrega.</p>
-          <hr class="divider" />
-          <form id="form-salida-cliente" novalidate>
-            <div class="form-group">
-              <label for="salida-cliente-select">Préstamo activo *</label>
-              <select id="salida-cliente-select" class="form-control" required>
-                <option value="">-- Seleccione préstamo --</option>
+            <div class="form-group" style="margin-bottom:0">
+              <label for="vf-estado">Estado</label>
+              <select id="vf-estado" class="form-control">
+                <option value="todos">Todos</option>
+                <option value="abierto">Pendiente</option>
+                <option value="cerrado">Cerrado</option>
               </select>
             </div>
-            <div id="salida-cliente-info" class="field-info hidden mb-1"></div>
-            <div class="form-group autocomplete-container" data-aux-target="salida-cliente-aux-select">
-              <label for="salida-cliente-aux-input">Auxiliar que devuelve *</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="salida-cliente-aux-input" class="form-control aux-autocomplete-input" placeholder="🔍 Escriba nombre o cédula..." autocomplete="off" />
-                <input type="hidden" id="salida-cliente-aux-select" required />
-                <div class="autocomplete-dropdown hidden" id="salida-cliente-aux-dropdown"></div>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="salida-cliente-cantidad">Cantidad a devolver *</label>
-              <input id="salida-cliente-cantidad" class="form-control" type="number" min="1" placeholder="0" required />
-            </div>
-            <div class="form-group">
-              <label for="salida-cliente-notas">Notas</label>
-              <textarea id="salida-cliente-notas" class="form-control" placeholder="Observaciones opcionales..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-block btn-lg" style="background:var(--warning);color:var(--white);">✓ Registrar Devolución</button>
-          </form>
+          </div>
+          <div style="display:flex;gap:.5rem;margin-top:.75rem">
+            <button id="btn-vf-filtrar" class="btn btn-primary btn-sm">🔍 Filtrar</button>
+            <button id="btn-vf-limpiar" class="btn btn-secondary btn-sm">✕ Limpiar</button>
+            <button id="btn-vf-csv" class="btn btn-outline btn-sm" style="margin-left:auto">⬇ CSV</button>
+          </div>
         </div>
+
+        <!-- Totales -->
+        <div id="viajes-totales" class="totales-row"></div>
+
+        <!-- Tabla de viajes -->
+        <div class="table-wrapper">
+          <table class="data-table viajes-table">
+            <thead>
+              <tr>
+                <th rowspan="2" class="th-vj th-fecha">Fecha</th>
+                <th rowspan="2" class="th-vj th-ref">#</th>
+                <th rowspan="2" class="th-vj">Conductor</th>
+                <th rowspan="2" class="th-vj">Auxiliar</th>
+                <th rowspan="2" class="th-vj th-placa">Placa</th>
+                <th rowspan="2" class="th-vj th-placa">Remolque</th>
+                <th rowspan="2" class="th-vj th-fact"># Factura</th>
+                <th colspan="4" class="th-group th-desp">Despachado por Alpina</th>
+                <th colspan="4" class="th-group th-ret">Retorno del Distribuidor</th>
+                <th colspan="4" class="th-group th-dif">Diferencia</th>
+                <th rowspan="2" class="th-vj">Estado</th>
+                <th rowspan="2" class="th-vj th-acc"></th>
+              </tr>
+              <tr>
+                <th class="th-sub th-desp">G</th>
+                <th class="th-sub th-desp">M</th>
+                <th class="th-sub th-desp">P</th>
+                <th class="th-sub th-desp">E</th>
+                <th class="th-sub th-ret">G</th>
+                <th class="th-sub th-ret">M</th>
+                <th class="th-sub th-ret">P</th>
+                <th class="th-sub th-ret">E</th>
+                <th class="th-sub th-dif">G</th>
+                <th class="th-sub th-dif">M</th>
+                <th class="th-sub th-dif">P</th>
+                <th class="th-sub th-dif">E</th>
+              </tr>
+            </thead>
+            <tbody id="viajes-tbody">
+              <tr><td colspan="21" class="text-center text-muted">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── RETORNOS ── -->
+      <section id="section-retornos" class="section">
+        <h2 class="section-title"><span class="section-icon">📥</span> Registrar Retorno</h2>
+        <p class="text-muted mb-1">Selecciona un viaje pendiente y registra las canastas devueltas por el distribuidor.</p>
+
+        <!-- Lista de viajes abiertos -->
+        <div id="retornos-list"></div>
+      </section>
+
+      <!-- ── CONDUCTORES ── -->
+      <section id="section-conductores" class="section">
+        <h2 class="section-title"><span class="section-icon">🧑‍✈️</span> Conductores</h2>
+        <div class="form-group mb-1">
+          <input id="search-conductores-input" class="form-control" type="text"
+            placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" style="max-width:360px" />
+        </div>
+        <div id="conductores-list"></div>
       </section>
 
       <!-- ── AUXILIARES ── -->
       <section id="section-auxiliares" class="section">
         <h2 class="section-title"><span class="section-icon">👷</span> Auxiliares</h2>
         <div class="form-group mb-1">
-          <input id="search-auxiliares-input" class="form-control" type="text" placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" style="max-width:360px" />
+          <input id="search-auxiliares-input" class="form-control" type="text"
+            placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" style="max-width:360px" />
         </div>
         <div id="auxiliares-list"></div>
-      </section>
-
-      <!-- ── HISTORIAL ── -->
-      <section id="section-historial" class="section">
-        <h2 class="section-title"><span class="section-icon">📋</span> Historial de Movimientos</h2>
-
-        <div class="card" style="margin-bottom:1rem;">
-          <div class="historial-filters">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="filter-fecha-desde">Desde</label>
-              <input id="filter-fecha-desde" class="form-control" type="date" />
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="filter-fecha-hasta">Hasta</label>
-              <input id="filter-fecha-hasta" class="form-control" type="date" />
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="filter-tipo">Tipo</label>
-              <select id="filter-tipo" class="form-control">
-                <option value="todos">Todos</option>
-                <option value="salida_auxiliar">Salida a Auxiliar</option>
-                <option value="entrada_auxiliar">Entrada de Auxiliar</option>
-                <option value="entrada_cliente">Entrada de Cliente</option>
-                <option value="salida_cliente">Salida a Cliente</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label for="filter-auxiliar">Auxiliar</label>
-              <select id="filter-auxiliar" class="form-control">
-                <option value="todos">Todos</option>
-              </select>
-            </div>
-          </div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
-            <button id="btn-apply-filters" class="btn btn-primary btn-sm">🔍 Filtrar</button>
-            <button id="btn-clear-filters" class="btn btn-secondary btn-sm">✕ Limpiar</button>
-          </div>
-        </div>
-
-        <div class="historial-actions">
-          <span id="historial-count" class="text-muted small"></span>
-          <button id="btn-export-csv" class="btn btn-outline btn-sm">⬇ Exportar CSV</button>
-        </div>
-
-        <div class="table-wrapper">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Referencia</th>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Cant.</th>
-                <th>Auxiliar</th>
-                <th>Cliente</th>
-                <th>Admin</th>
-                <th>Notas</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="historial-tbody">
-              <tr><td colspan="9" class="text-center text-muted">Cargando...</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div id="historial-pagination" style="margin-top:1rem;"></div>
       </section>
 
       <!-- ── CONFIGURACIÓN ── -->
       <section id="section-configuracion" class="section">
         <h2 class="section-title"><span class="section-icon">⚙️</span> Configuración</h2>
-        <div class="config-section">
+        <div class="config-cols">
+
+          <!-- Inventario teórico inicial -->
           <div class="card">
-            <h3 class="card-title">📦 Inventario en Bodega</h3>
-            <p class="text-muted mb-1">Ajusta manualmente el número de canastas en bodega.</p>
+            <h3 class="card-title">📦 Inventario Teórico Inicial</h3>
+            <p class="text-muted mb-1" style="font-size:.8125rem">
+              Punto de partida para calcular la diferencia acumulada.
+            </p>
             <hr class="divider" />
-            <form id="form-config" novalidate>
-              <div class="form-group">
-                <label for="config-inventario">Canastas en bodega</label>
-                <input id="config-inventario" class="form-control" type="number" min="0" placeholder="0" required />
+            <form id="form-inventario-inicial" novalidate>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Grandes</label>
+                  <input id="inv-grandes"  class="form-control" type="number" min="0" value="0" />
+                </div>
+                <div class="form-group">
+                  <label>Medianas</label>
+                  <input id="inv-medianas" class="form-control" type="number" min="0" value="0" />
+                </div>
+                <div class="form-group">
+                  <label>Pequeñas</label>
+                  <input id="inv-pequenas" class="form-control" type="number" min="0" value="0" />
+                </div>
+                <div class="form-group">
+                  <label>Estibas</label>
+                  <input id="inv-estibas"  class="form-control" type="number" min="0" value="0" />
+                </div>
               </div>
-              <button type="submit" class="btn btn-primary">Actualizar inventario</button>
+              <button type="submit" class="btn btn-primary">Guardar inventario</button>
             </form>
           </div>
+
+          <!-- Zona de peligro -->
           <div class="danger-zone">
             <div class="danger-zone-title">⚠️ Zona de peligro</div>
-            <p>Reiniciar eliminará todos los movimientos y reseteará el estado al inicial.</p>
-            <button id="btn-reset-data" class="btn btn-danger btn-sm">🗑 Reiniciar todos los datos</button>
+            <p>Elimina todos los viajes y reinicia contadores.</p>
+            <button id="btn-reset-viajes" class="btn btn-danger btn-sm">🗑 Reiniciar viajes</button>
           </div>
         </div>
       </section>
@@ -343,17 +252,17 @@
     </main>
   </div>
 
+  <!-- Bottom Nav móvil -->
   <nav class="bottom-nav">
     <button class="nav-item" data-nav="dashboard"><span class="nav-icon">📊</span>Dashboard</button>
-    <button class="nav-item" data-nav="movimiento"><span class="nav-icon">↔️</span>Movimiento</button>
-    <button class="nav-item" data-nav="auxiliares"><span class="nav-icon">👷</span>Auxiliares</button>
-    <button class="nav-item" data-nav="historial"><span class="nav-icon">📋</span>Historial</button>
-    <button class="nav-item" data-nav="configuracion"><span class="nav-icon">⚙️</span>Config</button>
+    <button class="nav-item" data-nav="viajes"><span class="nav-icon">🚛</span>Viajes</button>
+    <button class="nav-item" data-nav="retornos"><span class="nav-icon">📥</span>Retorno</button>
+    <button class="nav-item" data-nav="conductores"><span class="nav-icon">🧑‍✈️</span>Cond.</button>
+    <button class="nav-item" data-nav="auxiliares"><span class="nav-icon">👷</span>Aux.</button>
   </nav>
-
 </div>
 
-<!-- Modal -->
+<!-- Modal genérico -->
 <div id="modal-overlay" class="modal-overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div id="modal-title" class="modal-title"></div>
@@ -365,13 +274,26 @@
   </div>
 </div>
 
+<!-- Drawer lateral (para formularios y detalles) -->
+<div id="drawer-overlay" class="drawer-overlay hidden">
+  <div id="drawer-panel" class="drawer-panel">
+    <div class="drawer-header">
+      <div id="drawer-title" class="drawer-title"></div>
+      <button id="drawer-close" class="drawer-close-btn" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+  </div>
+</div>
+
 <div id="toast-container" aria-live="polite"></div>
 <div id="global-spinner" class="hidden"><div class="spinner"></div></div>
 
 <script src="js/db.js"></script>
+<script src="js/db-viajes.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/firma.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/ui-viajes.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

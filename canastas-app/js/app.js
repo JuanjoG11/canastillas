@@ -1,12 +1,11 @@
 /**
- * app.js - Controlador principal
- * Control de Canastas PWA
+ * app.js - Controlador principal v2.0
+ * Control de Canastas PWA — Modelo de Viajes
  */
 
 const APP = (() => {
 
-  let editingAuxiliarId = null;
-  let historialFilters  = {};
+  let viajesFiltros = {};
 
   // ─── Bootstrap ─────────────────────────────────────────────────────────────
   async function init() {
@@ -38,40 +37,43 @@ const APP = (() => {
     document.querySelectorAll('[data-nav]').forEach(el =>
       el.addEventListener('click', () => navigateTo(el.dataset.nav))
     );
-    document.querySelectorAll('[data-mov-tab]').forEach(tab =>
-      tab.addEventListener('click', () => switchMovTab(tab.dataset.movTab))
-    );
 
-    document.getElementById('form-salida-auxiliar').addEventListener('submit',  handleSalidaAuxiliar);
-    document.getElementById('form-entrada-auxiliar').addEventListener('submit', handleEntradaAuxiliar);
-    document.getElementById('form-entrada-cliente').addEventListener('submit',  handleEntradaCliente);
-    document.getElementById('form-salida-cliente').addEventListener('submit',   handleSalidaCliente);
+    // Nuevo despacho
+    document.getElementById('btn-nuevo-viaje').addEventListener('click', abrirFormularioDespacho);
 
-    document.getElementById('entrada-aux-select').addEventListener('change', updateEntradaAuxInfo);
-    document.getElementById('salida-cliente-select').addEventListener('change', updateSalidaClienteInfo);
+    // Filtros de viajes
+    document.getElementById('btn-vf-filtrar').addEventListener('click', aplicarFiltrosViajes);
+    document.getElementById('btn-vf-limpiar').addEventListener('click', limpiarFiltrosViajes);
+    document.getElementById('btn-vf-csv').addEventListener('click', exportarViajesCSV);
 
-    // Limpiar autocompletes al reiniciar formularios
-    document.querySelectorAll('form').forEach(form => {
-      form.addEventListener('reset', () => {
-        form.querySelectorAll('.aux-autocomplete-input').forEach(inp => inp.value = '');
-        form.querySelectorAll('.autocomplete-dropdown').forEach(d => d.classList.add('hidden'));
+    // Búsqueda conductores
+    document.getElementById('search-conductores-input')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.persona-card').forEach(card => {
+        card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
       });
     });
 
+    // Búsqueda auxiliares
     document.getElementById('search-auxiliares-input')?.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase().trim();
       document.querySelectorAll('.auxiliar-card').forEach(card => {
-        const text = card.textContent.toLowerCase();
-        card.style.display = text.includes(q) ? '' : 'none';
+        card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
       });
     });
 
-    document.getElementById('btn-apply-filters').addEventListener('click', applyHistorialFilters);
-    document.getElementById('btn-clear-filters').addEventListener('click',  clearHistorialFilters);
-    document.getElementById('btn-export-csv').addEventListener('click',     exportCSV);
+    // Configuración
+    document.getElementById('form-inventario-inicial').addEventListener('submit', handleInventarioSubmit);
+    document.getElementById('btn-reset-viajes').addEventListener('click', handleResetViajes);
 
-    document.getElementById('form-config').addEventListener('submit',  handleConfigSubmit);
-    document.getElementById('btn-reset-data').addEventListener('click', handleResetData);
+    // Drawer
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+    document.getElementById('drawer-overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('drawer-overlay')) closeDrawer();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDrawer();
+    });
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
@@ -97,7 +99,7 @@ const APP = (() => {
   function handleLogout() {
     UI.showModal({
       title: 'Cerrar Sesión',
-      body: '¿Está seguro que desea cerrar sesión?',
+      body: '¿Seguro que deseas cerrar sesión?',
       confirmLabel: 'Cerrar sesión',
       onConfirm: () => { AUTH.logout(); showLogin(); },
     });
@@ -109,246 +111,336 @@ const APP = (() => {
     UI.setLoading(true);
     try {
       switch (section) {
-        case 'dashboard':     await UI.renderDashboard();                                            break;
-        case 'movimiento':    await switchMovTab('salida-auxiliar');                                 break;
-        case 'auxiliares':    await UI.renderAuxiliares();                                             break;
-        case 'historial':     await populateHistorialFilters(); await UI.renderHistorial(historialFilters, 1); break;
-        case 'configuracion': await UI.renderConfiguracion();                                        break;
+        case 'dashboard':     await UI_VIAJES.renderDashboard();                         break;
+        case 'viajes':        await UI_VIAJES.renderViajes(viajesFiltros);               break;
+        case 'retornos':      await UI_VIAJES.renderRetornos();                          break;
+        case 'conductores':   await UI_VIAJES.renderConductores();                       break;
+        case 'auxiliares':    await UI.renderAuxiliares();                               break;
+        case 'configuracion': await UI_VIAJES.renderConfiguracion();                     break;
       }
     } catch (err) { UI.toast('Error: ' + err.message, 'error'); }
     UI.setLoading(false);
   }
 
-  // ─── Tabs ──────────────────────────────────────────────────────────────────
-  async function switchMovTab(tab) {
-    document.querySelectorAll('[data-mov-tab]').forEach(t =>
-      t.classList.toggle('active', t.dataset.movTab === tab)
+  // ─── Drawer ────────────────────────────────────────────────────────────────
+  function openDrawer(title, html) {
+    document.getElementById('drawer-title').textContent = title;
+    document.getElementById('drawer-body').innerHTML = html;
+    document.getElementById('drawer-overlay').classList.remove('hidden');
+    requestAnimationFrame(() =>
+      document.getElementById('drawer-panel').classList.add('drawer-open')
     );
-    document.querySelectorAll('.mov-panel').forEach(p =>
-      p.classList.toggle('hidden', p.id !== `panel-${tab}`)
-    );
-    try {
-      switch (tab) {
-        case 'salida-auxiliar':
-          await UI.populateAuxiliarSelect('salida-aux-select');
-          break;
-        case 'entrada-auxiliar':
-          await UI.populateAuxiliarSelect('entrada-aux-select');
-          await updateEntradaAuxInfo();
-          break;
-        case 'entrada-cliente':
-          await UI.populateAuxiliarSelect('entrada-cliente-aux-select');
-          break;
-        case 'salida-cliente':
-          await UI.populateClientePrestamos('salida-cliente-select');
-          await UI.populateAuxiliarSelect('salida-cliente-aux-select');
-          await updateSalidaClienteInfo();
-          break;
+  }
+
+  function closeDrawer() {
+    const panel = document.getElementById('drawer-panel');
+    panel.classList.remove('drawer-open');
+    setTimeout(() => {
+      document.getElementById('drawer-overlay').classList.add('hidden');
+      document.getElementById('drawer-body').innerHTML = '';
+    }, 260);
+  }
+
+  // ─── Formulario nuevo despacho ─────────────────────────────────────────────
+  async function abrirFormularioDespacho() {
+    const [conductores, auxiliares] = await Promise.all([
+      DB_VIAJES.getConductores(true),
+      DB.getAuxiliares(true),
+    ]);
+
+    const condOpts = conductores.map(c =>
+      `<option value="${c.id}">${UI.escapeHtml(c.nombre)}</option>`
+    ).join('');
+    const auxOpts = auxiliares.map(a =>
+      `<option value="${a.id}">${UI.escapeHtml(a.nombre)}</option>`
+    ).join('');
+
+    openDrawer('🚛 Nuevo Despacho', `
+      <form id="form-despacho" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Conductor *</label>
+            <select id="desp-conductor" class="form-control" required>
+              <option value="">-- Seleccione --</option>
+              ${condOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Auxiliar *</label>
+            <select id="desp-auxiliar" class="form-control" required>
+              <option value="">-- Seleccione --</option>
+              ${auxOpts}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Placa *</label>
+            <input id="desp-placa" class="form-control" type="text" placeholder="Ej: SWK 856" required />
+          </div>
+          <div class="form-group">
+            <label>Remolque</label>
+            <input id="desp-remolque" class="form-control" type="text" placeholder="Ej: R52231" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label># Factura</label>
+          <input id="desp-factura" class="form-control" type="text" placeholder="Número de factura" />
+        </div>
+
+        <hr class="divider" />
+        <div class="form-section-label">📤 Material despachado</div>
+        <div class="form-row-4">
+          <div class="form-group">
+            <label>Grandes</label>
+            <input id="desp-grandes"  class="form-control" type="number" min="0" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Medianas</label>
+            <input id="desp-medianas" class="form-control" type="number" min="0" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Pequeñas</label>
+            <input id="desp-pequenas" class="form-control" type="number" min="0" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Estibas</label>
+            <input id="desp-estibas"  class="form-control" type="number" min="0" value="0" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Observaciones</label>
+          <textarea id="desp-obs" class="form-control" placeholder="Notas opcionales..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Despacho</button>
+      </form>
+    `);
+
+    document.getElementById('form-despacho').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const conductor_id = document.getElementById('desp-conductor').value;
+      const auxiliar_id  = document.getElementById('desp-auxiliar').value;
+      const placa        = document.getElementById('desp-placa').value.trim();
+
+      if (!conductor_id || !auxiliar_id || !placa) {
+        UI.toast('Conductor, auxiliar y placa son obligatorios', 'error'); return;
       }
-    } catch (err) { console.warn('switchMovTab:', err); }
-  }
 
-  async function updateEntradaAuxInfo() {
-    const auxId  = document.getElementById('entrada-aux-select').value;
-    const infoEl = document.getElementById('entrada-aux-info');
-    if (!auxId) { infoEl.classList.add('hidden'); return; }
-    try {
-      const estado   = await DB.getEstado();
-      const canastas = (estado.canastas_con_auxiliares || {})[auxId] || 0;
-      infoEl.textContent = `Este auxiliar tiene ${canastas} canasta(s) fuera actualmente`;
-      infoEl.classList.remove('hidden');
-      const ci = document.getElementById('entrada-aux-cantidad');
-      if (ci) ci.max = canastas;
-    } catch {}
-  }
-
-  async function updateSalidaClienteInfo() {
-    const pid    = document.getElementById('salida-cliente-select').value;
-    const infoEl = document.getElementById('salida-cliente-info');
-    if (!pid) { infoEl.classList.add('hidden'); return; }
-    try {
-      const estado   = await DB.getEstado();
-      const prestamo = (estado.canastas_clientes_prestadas || []).find(p => p.id === pid);
-      if (prestamo) {
-        const auxNombre = prestamo.auxiliar_id
-          ? (await DB.getAuxiliarById(prestamo.auxiliar_id))?.nombre || ''
-          : '';
-        const auxStr = auxNombre ? ` — Gestionado por: ${auxNombre}` : '';
-        infoEl.textContent = `${prestamo.cliente}: ${prestamo.cantidad} canastas${auxStr}`;
-        infoEl.classList.remove('hidden');
-        const ci = document.getElementById('salida-cliente-cantidad');
-        if (ci) ci.max = prestamo.cantidad;
-      }
-    } catch {}
-  }
-
-  // ─── Confirmación ──────────────────────────────────────────────────────────
-  async function buildConfirmBody({ tipo, cantidad, auxiliar_id, cliente_nombre, cliente_prestamo_id }) {
-    const tipoLabel = UI.TIPO_LABELS[tipo] || tipo;
-    let quien = '';
-
-    if (auxiliar_id) {
-      const aux = await DB.getAuxiliarById(auxiliar_id);
-      if (aux) quien = ` con <strong>${UI.escapeHtml(aux.nombre)}</strong>`;
-    }
-    if (cliente_prestamo_id) {
-      const estado   = await DB.getEstado();
-      const prestamo = (estado.canastas_clientes_prestadas || []).find(p => p.id === cliente_prestamo_id);
-      if (prestamo) quien += ` — cliente: <strong>${UI.escapeHtml(prestamo.cliente)}</strong>`;
-    }
-    if (cliente_nombre && !cliente_prestamo_id) {
-      quien += ` — cliente: <strong>${UI.escapeHtml(cliente_nombre)}</strong>`;
-    }
-
-    return `¿Registrar <strong>${tipoLabel}</strong> de <strong>${cantidad} canastas</strong>${quien}?`;
-  }
-
-  // ─── Handlers de movimiento ────────────────────────────────────────────────
-  async function handleSalidaAuxiliar(e) {
-    e.preventDefault();
-    await confirmarYRegistrar({
-      tipo:        'salida_auxiliar',
-      cantidad:    document.getElementById('salida-aux-cantidad').value,
-      auxiliar_id: document.getElementById('salida-aux-select').value,
-      notas:       document.getElementById('salida-aux-notas').value,
-    }, 'form-salida-auxiliar', async () => {
-      await UI.populateAuxiliarSelect('salida-aux-select');
+      UI.setLoading(true);
+      try {
+        const viaje = await DB_VIAJES.registrarViaje({
+          conductor_id,
+          auxiliar_id,
+          placa,
+          remolque:       document.getElementById('desp-remolque').value.trim(),
+          numero_factura: document.getElementById('desp-factura').value.trim(),
+          desp_grandes:   document.getElementById('desp-grandes').value,
+          desp_medianas:  document.getElementById('desp-medianas').value,
+          desp_pequenas:  document.getElementById('desp-pequenas').value,
+          desp_estibas:   document.getElementById('desp-estibas').value,
+          observaciones:  document.getElementById('desp-obs').value,
+          admin_registrador: AUTH.getCurrentUser(),
+        });
+        DB_VIAJES.invalidateCache();
+        closeDrawer();
+        UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado`, 'success');
+        await navigateTo('viajes');
+      } catch (err) { UI.toast(err.message, 'error'); }
+      UI.setLoading(false);
     });
   }
 
-  async function handleEntradaAuxiliar(e) {
-    e.preventDefault();
-    await confirmarYRegistrar({
-      tipo:        'entrada_auxiliar',
-      cantidad:    document.getElementById('entrada-aux-cantidad').value,
-      auxiliar_id: document.getElementById('entrada-aux-select').value,
-      notas:       document.getElementById('entrada-aux-notas').value,
-    }, 'form-entrada-auxiliar', async () => {
-      await UI.populateAuxiliarSelect('entrada-aux-select');
-      await updateEntradaAuxInfo();
+  // ─── Formulario de retorno ─────────────────────────────────────────────────
+  async function abrirFormularioRetorno(viajeId) {
+    const viaje = await DB_VIAJES.getViajeById(viajeId);
+    if (!viaje) return;
+
+    const [conductores, auxiliares] = await Promise.all([
+      DB_VIAJES.getConductores(),
+      DB.getAuxiliares(),
+    ]);
+    const condNombre = conductores.find(c => c.id === viaje.conductor_id)?.nombre || '—';
+    const auxNombre  = auxiliares.find(a => a.id === viaje.auxiliar_id)?.nombre || '—';
+
+    openDrawer('📥 Registrar Retorno', `
+      <div class="retorno-detalle-header">
+        <div class="retorno-ref"><strong>${UI.escapeHtml(viaje.numero_viaje)}</strong> · ${UI.escapeHtml(viaje.placa)}</div>
+        <div class="text-muted small">${condNombre} · ${auxNombre}</div>
+        <div class="desp-resumen">
+          Despachado: <strong>${viaje.desp_grandes}G · ${viaje.desp_medianas}M · ${viaje.desp_pequenas}P · ${viaje.desp_estibas}E</strong>
+        </div>
+      </div>
+      <hr class="divider" />
+      <form id="form-retorno" novalidate>
+        <div class="form-section-label">📥 Material retornado por distribuidor</div>
+        <div class="form-row-4">
+          <div class="form-group">
+            <label>Grandes</label>
+            <input id="ret-grandes"  class="form-control" type="number" min="0" value="${viaje.desp_grandes}" />
+          </div>
+          <div class="form-group">
+            <label>Medianas</label>
+            <input id="ret-medianas" class="form-control" type="number" min="0" value="${viaje.desp_medianas}" />
+          </div>
+          <div class="form-group">
+            <label>Pequeñas</label>
+            <input id="ret-pequenas" class="form-control" type="number" min="0" value="${viaje.desp_pequenas}" />
+          </div>
+          <div class="form-group">
+            <label>Estibas</label>
+            <input id="ret-estibas"  class="form-control" type="number" min="0" value="${viaje.desp_estibas}" />
+          </div>
+        </div>
+        <!-- Preview diferencia en tiempo real -->
+        <div id="dif-preview" class="dif-preview"></div>
+        <button type="submit" class="btn btn-success btn-block btn-lg">✓ Confirmar Retorno</button>
+      </form>
+    `);
+
+    // Preview de diferencia en tiempo real
+    const campos = ['ret-grandes', 'ret-medianas', 'ret-pequenas', 'ret-estibas'];
+    const desp = [viaje.desp_grandes, viaje.desp_medianas, viaje.desp_pequenas, viaje.desp_estibas];
+    const labels = ['Grandes', 'Medianas', 'Pequeñas', 'Estibas'];
+
+    const updatePreview = () => {
+      const preview = document.getElementById('dif-preview');
+      if (!preview) return;
+      const items = campos.map((id, i) => {
+        const retVal = parseInt(document.getElementById(id)?.value || '0', 10);
+        const dif = desp[i] - retVal;
+        return `<span class="${dif < 0 ? 'neg' : dif > 0 ? 'pos' : ''}">${labels[i]}: ${dif > 0 ? '+' : ''}${dif}</span>`;
+      });
+      preview.innerHTML = `<strong>Diferencia:</strong> ${items.join(' · ')}`;
+    };
+
+    campos.forEach(id => {
+      document.getElementById(id)?.addEventListener('input', updatePreview);
+    });
+    updatePreview();
+
+    document.getElementById('form-retorno').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      UI.setLoading(true);
+      try {
+        await DB_VIAJES.registrarRetorno(
+          viajeId,
+          document.getElementById('ret-grandes').value,
+          document.getElementById('ret-medianas').value,
+          document.getElementById('ret-pequenas').value,
+          document.getElementById('ret-estibas').value,
+        );
+        DB_VIAJES.invalidateCache();
+        closeDrawer();
+        UI.toast('✓ Retorno registrado', 'success');
+        await navigateTo('retornos');
+      } catch (err) { UI.toast(err.message, 'error'); }
+      UI.setLoading(false);
     });
   }
 
-  async function handleEntradaCliente(e) {
-    e.preventDefault();
-    await confirmarYRegistrar({
-      tipo:           'entrada_cliente',
-      cantidad:       document.getElementById('entrada-cliente-cantidad').value,
-      cliente_nombre: document.getElementById('entrada-cliente-nombre').value,
-      auxiliar_id:    document.getElementById('entrada-cliente-aux-select').value,
-      notas:          document.getElementById('entrada-cliente-notas').value,
-    }, 'form-entrada-cliente', async () => {
-      await UI.populateAuxiliarSelect('entrada-cliente-aux-select');
-    });
+  // ─── Ver detalle viaje ─────────────────────────────────────────────────────
+  async function verDetalleViaje(viajeId) {
+    const viaje = await DB_VIAJES.getViajeById(viajeId);
+    if (!viaje) return;
+
+    const [conductores, auxiliares] = await Promise.all([
+      DB_VIAJES.getConductores(),
+      DB.getAuxiliares(),
+    ]);
+    const condNombre = conductores.find(c => c.id === viaje.conductor_id)?.nombre || '—';
+    const auxNombre  = auxiliares.find(a => a.id === viaje.auxiliar_id)?.nombre || '—';
+
+    const difG = viaje.ret_grandes !== null ? (viaje.desp_grandes - viaje.ret_grandes) : null;
+    const difM = viaje.ret_medianas !== null ? (viaje.desp_medianas - viaje.ret_medianas) : null;
+    const difP = viaje.ret_pequenas !== null ? (viaje.desp_pequenas - viaje.ret_pequenas) : null;
+    const difE = viaje.ret_estibas !== null ? (viaje.desp_estibas - viaje.ret_estibas) : null;
+
+    const fmtDif = (v) => v === null ? '—' : `<span class="${v < 0 ? 'neg' : v > 0 ? 'pos' : ''}">${v > 0 ? '+' : ''}${v}</span>`;
+
+    const retBlock = viaje.ret_grandes !== null ? `
+      <div class="detalle-row"><span>Retorno:</span><span>${viaje.ret_grandes}G · ${viaje.ret_medianas}M · ${viaje.ret_pequenas}P · ${viaje.ret_estibas}E</span></div>
+      <div class="detalle-row"><span>Diferencia:</span><span>${fmtDif(difG)}G · ${fmtDif(difM)}M · ${fmtDif(difP)}P · ${fmtDif(difE)}E</span></div>
+    ` : `<div class="field-info">Sin retorno registrado aún.</div>`;
+
+    const anularBtn = viaje.estado !== 'anulado'
+      ? `<button class="btn btn-danger btn-sm" onclick="APP.confirmarAnularViaje('${viaje.id}','${UI.escapeHtml(viaje.numero_viaje)}')">Anular viaje</button>`
+      : '';
+    const retornarBtn = viaje.estado === 'abierto'
+      ? `<button class="btn btn-primary btn-sm" onclick="APP.abrirFormularioRetorno('${viaje.id}')">Registrar retorno</button>`
+      : '';
+
+    openDrawer(`🚛 Viaje ${UI.escapeHtml(viaje.numero_viaje)}`, `
+      <div class="detalle-grid">
+        <div class="detalle-row"><span>Fecha:</span><span>${viaje.fecha}</span></div>
+        <div class="detalle-row"><span>Conductor:</span><span>${UI.escapeHtml(condNombre)}</span></div>
+        <div class="detalle-row"><span>Auxiliar:</span><span>${UI.escapeHtml(auxNombre)}</span></div>
+        <div class="detalle-row"><span>Placa:</span><span>${UI.escapeHtml(viaje.placa)}</span></div>
+        <div class="detalle-row"><span>Remolque:</span><span>${UI.escapeHtml(viaje.remolque || '—')}</span></div>
+        <div class="detalle-row"><span># Factura:</span><span>${UI.escapeHtml(viaje.numero_factura || '—')}</span></div>
+        <div class="detalle-row"><span>Despachado:</span><span>${viaje.desp_grandes}G · ${viaje.desp_medianas}M · ${viaje.desp_pequenas}P · ${viaje.desp_estibas}E</span></div>
+        ${retBlock}
+        ${viaje.observaciones ? `<div class="detalle-row"><span>Obs:</span><span>${UI.escapeHtml(viaje.observaciones)}</span></div>` : ''}
+        <div class="detalle-row"><span>Estado:</span><span><span class="badge ${ESTADOS_BADGE_MAP[viaje.estado] || 'badge-gray'}">${ESTADOS_LABEL_MAP[viaje.estado] || viaje.estado}</span></span></div>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:1.25rem;flex-wrap:wrap">
+        ${retornarBtn}
+        ${anularBtn}
+      </div>
+    `);
   }
 
-  async function handleSalidaCliente(e) {
-    e.preventDefault();
-    await confirmarYRegistrar({
-      tipo:                'salida_cliente',
-      cantidad:            document.getElementById('salida-cliente-cantidad').value,
-      cliente_prestamo_id: document.getElementById('salida-cliente-select').value,
-      auxiliar_id:         document.getElementById('salida-cliente-aux-select').value,
-      notas:               document.getElementById('salida-cliente-notas').value,
-    }, 'form-salida-cliente', async () => {
-      await UI.populateClientePrestamos('salida-cliente-select');
-      await UI.populateAuxiliarSelect('salida-cliente-aux-select');
-      await updateSalidaClienteInfo();
-    });
-  }
+  const ESTADOS_BADGE_MAP = { abierto: 'badge-orange', cerrado: 'badge-green', anulado: 'badge-gray' };
+  const ESTADOS_LABEL_MAP = { abierto: 'Pendiente', cerrado: 'Cerrado', anulado: 'Anulado' };
 
-  async function confirmarYRegistrar(data, formId, afterSuccess = null) {
-    // Validaciones rápidas
-    if (!data.cantidad || parseInt(data.cantidad) <= 0) { UI.toast('Ingresa una cantidad válida', 'error'); return; }
-    if (['salida_auxiliar','entrada_auxiliar','entrada_cliente','salida_cliente'].includes(data.tipo) && !data.auxiliar_id) {
-      UI.toast('Selecciona un auxiliar', 'error'); return;
-    }
-    if (data.tipo === 'entrada_cliente' && !data.cliente_nombre?.trim()) { UI.toast('Ingresa el nombre del cliente', 'error'); return; }
-    if (data.tipo === 'salida_cliente' && !data.cliente_prestamo_id) { UI.toast('Selecciona el préstamo', 'error'); return; }
-
-    const body = await buildConfirmBody(data);
+  // ─── Anular viaje ──────────────────────────────────────────────────────────
+  function confirmarAnularViaje(viajeId, numero) {
     UI.showModal({
-      title: '¿Confirmar movimiento?',
-      body,
-      confirmLabel: '✓ Confirmar',
-      cancelLabel: 'Revisar',
+      title: 'Anular viaje',
+      body: `¿Seguro que deseas anular el viaje <strong>${UI.escapeHtml(numero)}</strong>? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Anular', danger: true,
       onConfirm: async () => {
         UI.setLoading(true);
         try {
-          DB.invalidateCache();
-          const mov = await DB.registrarMovimiento({ ...data, admin_registrador: AUTH.getCurrentUser() });
-
-          // Solicitar firma solo en salida/entrada de auxiliar
-          const necesitaFirma = ['salida_auxiliar', 'entrada_auxiliar'].includes(data.tipo);
-          if (necesitaFirma) {
-            const aux      = await DB.getAuxiliarById(data.auxiliar_id);
-            const auxNombre = aux ? aux.nombre : 'Auxiliar';
-            const tipoLabel = data.tipo === 'salida_auxiliar' ? 'salida' : 'entrada';
-
-            UI.setLoading(false);
-            const firmaUrl = await FIRMA.solicitarFirma(auxNombre, tipoLabel, mov.referencia_numero);
-
-            if (firmaUrl) {
-              UI.setLoading(true);
-              await DB.guardarFirma(mov.id, firmaUrl);
-              UI.toast(`✓ Registrado y firmado: ${mov.referencia_numero}`, 'success');
-            } else {
-              UI.toast(`✓ Registrado sin firma: ${mov.referencia_numero}`, 'success');
-            }
-          } else {
-            UI.toast(`✓ Registrado: ${mov.referencia_numero}`, 'success');
-          }
-
-          document.getElementById(formId).reset();
-          document.querySelectorAll('.aux-search').forEach(i => i.value = '');
-          document.querySelectorAll('.field-info').forEach(el => el.classList.add('hidden'));
-          if (afterSuccess) await afterSuccess();
+          await DB_VIAJES.anularViaje(viajeId);
+          closeDrawer();
+          UI.toast('Viaje anulado', 'success');
+          await navigateTo('viajes');
         } catch (err) { UI.toast(err.message, 'error'); }
         UI.setLoading(false);
       },
     });
   }
 
-  // ─── Auxiliares CRUD ──────────────────────────────────────────────────────
-  async function handleAuxiliarSubmit(e) {
-    e.preventDefault();
-    const nombre = document.getElementById('aux-nombre').value.trim();
-    const cedula = document.getElementById('aux-cedula').value.trim();
-    if (!nombre || !cedula) { UI.toast('Nombre y cédula son obligatorios', 'error'); return; }
-    UI.setLoading(true);
-    try {
-      if (editingAuxiliarId) {
-        await DB.updateAuxiliar(editingAuxiliarId, { nombre, cedula });
-        UI.toast('Auxiliar actualizado', 'success');
-      } else {
-        await DB.addAuxiliar(nombre, cedula);
-        UI.toast('Auxiliar registrado', 'success');
-      }
-      resetAuxiliarForm();
-      await UI.renderAuxiliares();
-    } catch (err) { UI.toast(err.message, 'error'); }
-    UI.setLoading(false);
+  // ─── Conductores toggle ─────────────────────────────────────────────────────
+  async function toggleConductor(id, activate) {
+    const c = await DB_VIAJES.getConductorById(id);
+    if (!c) return;
+    UI.showModal({
+      title: `${activate ? 'Activar' : 'Desactivar'} Conductor`,
+      body: `¿${activate ? 'Activar' : 'Desactivar'} a <strong>${UI.escapeHtml(c.nombre)}</strong>?`,
+      confirmLabel: activate ? 'Activar' : 'Desactivar', danger: !activate,
+      onConfirm: async () => {
+        UI.setLoading(true);
+        try {
+          activate ? await DB_VIAJES.reactivateConductor(id) : await DB_VIAJES.deactivateConductor(id);
+          UI.toast(`Conductor ${activate ? 'activado' : 'desactivado'}`, 'success');
+          await UI_VIAJES.renderConductores();
+        } catch (err) { UI.toast(err.message, 'error'); }
+        UI.setLoading(false);
+      },
+    });
   }
 
-  async function editAuxiliar(id) {
-    const aux = await DB.getAuxiliarById(id);
-    if (!aux) return;
-    editingAuxiliarId = id;
-    document.getElementById('aux-nombre').value = aux.nombre;
-    document.getElementById('aux-cedula').value = aux.cedula;
-    document.getElementById('form-auxiliar-title').textContent = 'Editar Auxiliar';
-    document.getElementById('btn-cancel-auxiliar').classList.remove('hidden');
-    document.getElementById('form-auxiliar').scrollIntoView({ behavior: 'smooth' });
-  }
-
+  // ─── Auxiliares toggle ──────────────────────────────────────────────────────
   async function toggleAuxiliar(id, activate) {
     const aux = await DB.getAuxiliarById(id);
     if (!aux) return;
     UI.showModal({
       title: `${activate ? 'Activar' : 'Desactivar'} Auxiliar`,
       body: `¿${activate ? 'Activar' : 'Desactivar'} a <strong>${UI.escapeHtml(aux.nombre)}</strong>?`,
-      confirmLabel: activate ? 'Activar' : 'Desactivar',
-      danger: !activate,
+      confirmLabel: activate ? 'Activar' : 'Desactivar', danger: !activate,
       onConfirm: async () => {
         UI.setLoading(true);
         try {
@@ -361,58 +453,37 @@ const APP = (() => {
     });
   }
 
-  function resetAuxiliarForm() {
-    editingAuxiliarId = null;
-    document.getElementById('form-auxiliar').reset();
-    document.getElementById('form-auxiliar-title').textContent = 'Nuevo Auxiliar';
-    document.getElementById('btn-cancel-auxiliar').classList.add('hidden');
+  // ─── Historial auxiliar ─────────────────────────────────────────────────────
+  async function verHistorialAuxiliar(auxId, auxNombre) {
+    await UI.showHistorialAuxiliar(auxId, auxNombre);
   }
 
-  // ─── Historial ─────────────────────────────────────────────────────────────
-  async function populateHistorialFilters() {
-    await UI.populateAuxiliarSelect('filter-auxiliar', false);
-    const sel = document.getElementById('filter-auxiliar');
-    if (sel) {
-      const opt = document.createElement('option');
-      opt.value = 'todos'; opt.textContent = '-- Todos --';
-      sel.insertBefore(opt, sel.firstChild);
-      sel.value = historialFilters.auxiliar_id || 'todos';
-    }
-  }
-
-  async function applyHistorialFilters() {
-    historialFilters = {
-      fechaDesde:  document.getElementById('filter-fecha-desde').value || null,
-      fechaHasta:  document.getElementById('filter-fecha-hasta').value || null,
-      tipo:        document.getElementById('filter-tipo').value || 'todos',
-      auxiliar_id: document.getElementById('filter-auxiliar').value || 'todos',
+  // ─── Filtros viajes ─────────────────────────────────────────────────────────
+  async function aplicarFiltrosViajes() {
+    viajesFiltros = {
+      fechaDesde: document.getElementById('vf-desde').value || null,
+      fechaHasta: document.getElementById('vf-hasta').value || null,
+      estado:     document.getElementById('vf-estado').value || 'todos',
     };
-    UI.setLoading(true);
-    try { await UI.renderHistorial(historialFilters, 1); }
-    catch (err) { UI.toast('Error al filtrar: ' + err.message, 'error'); }
-    UI.setLoading(false);
+    await UI_VIAJES.renderViajes(viajesFiltros);
   }
 
-  async function clearHistorialFilters() {
-    historialFilters = {};
-    document.getElementById('filter-fecha-desde').value = '';
-    document.getElementById('filter-fecha-hasta').value = '';
-    document.getElementById('filter-tipo').value = 'todos';
-    const s = document.getElementById('filter-auxiliar');
-    if (s) s.value = 'todos';
-    UI.setLoading(true);
-    await UI.renderHistorial({}, 1);
-    UI.setLoading(false);
+  async function limpiarFiltrosViajes() {
+    viajesFiltros = {};
+    document.getElementById('vf-desde').value = '';
+    document.getElementById('vf-hasta').value = '';
+    document.getElementById('vf-estado').value = 'todos';
+    await UI_VIAJES.renderViajes({});
   }
 
-  async function exportCSV() {
+  async function exportarViajesCSV() {
     UI.setLoading(true);
     try {
-      const csv  = await DB.exportCSV();
+      const csv  = await DB_VIAJES.exportViajesCSV();
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = url; a.download = `canastas-${new Date().toISOString().slice(0,10)}.csv`;
+      a.href = url; a.download = `viajes-${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
       UI.toast('CSV exportado', 'success');
@@ -420,83 +491,44 @@ const APP = (() => {
     UI.setLoading(false);
   }
 
-  // ─── Configuración ─────────────────────────────────────────────────────────
-  async function handleConfigSubmit(e) {
+  // ─── Configuración ──────────────────────────────────────────────────────────
+  async function handleInventarioSubmit(e) {
     e.preventDefault();
-    const cantidad = parseInt(document.getElementById('config-inventario').value, 10);
-    if (isNaN(cantidad) || cantidad < 0) { UI.toast('Cantidad inválida', 'error'); return; }
-    UI.showModal({
-      title: 'Actualizar Inventario',
-      body: `¿Establecer bodega en <strong>${cantidad} canastas</strong>?`,
-      confirmLabel: 'Actualizar',
-      onConfirm: async () => {
-        UI.setLoading(true);
-        try { await DB.setInventarioInicial(cantidad); UI.toast('Inventario actualizado', 'success'); await UI.renderConfiguracion(); }
-        catch (err) { UI.toast(err.message, 'error'); }
-        UI.setLoading(false);
-      },
-    });
+    UI.setLoading(true);
+    try {
+      await DB_VIAJES.setInventarioInicial(
+        document.getElementById('inv-grandes').value,
+        document.getElementById('inv-medianas').value,
+        document.getElementById('inv-pequenas').value,
+        document.getElementById('inv-estibas').value,
+      );
+      UI.toast('Inventario actualizado', 'success');
+    } catch (err) { UI.toast(err.message, 'error'); }
+    UI.setLoading(false);
   }
 
-  async function handleResetData() {
+  async function handleResetViajes() {
     UI.showModal({
-      title: '⚠️ Reiniciar Todos los Datos',
-      body: '<p><strong>Se eliminarán TODOS los movimientos</strong> y el estado volverá a cero.</p><p style="margin-top:.5rem"><strong>No se puede deshacer.</strong></p>',
+      title: '⚠️ Reiniciar viajes',
+      body: '<p><strong>Se eliminarán TODOS los viajes.</strong> No se puede deshacer.</p>',
       confirmLabel: 'Reiniciar', danger: true,
       onConfirm: async () => {
         UI.setLoading(true);
-        try { await DB.resetData(); UI.toast('Datos reiniciados', 'success'); await UI.renderConfiguracion(); }
-        catch (err) { UI.toast(err.message, 'error'); }
-        UI.setLoading(false);
-      },
-    });
-  }
-
-  // ─── Anular movimiento ─────────────────────────────────────────────────────
-  async function anularMovimiento(movId, referencia) {
-    UI.showModal({
-      title: '¿Anular movimiento?',
-      body: `<p>Vas a anular el movimiento <strong>${UI.escapeHtml(referencia)}</strong>.</p>
-             <p style="margin-top:.5rem">Esto creará un movimiento de contrapartida automático para revertir el estado. <strong>El historial conserva ambos registros.</strong></p>`,
-      confirmLabel: '🗑 Anular',
-      danger: true,
-      onConfirm: async () => {
-        UI.setLoading(true);
         try {
-          const espejo = await DB.anularMovimiento(movId, AUTH.getCurrentUser());
-          UI.toast(`Movimiento anulado. Contrapartida: ${espejo.referencia_numero}`, 'success');
-          // Refrescar historial
-          await UI.renderHistorial(historialFilters, 1);
+          // Soft: marcar todos como anulados no existe DELETE en REST anon sin RLS
+          UI.toast('Para reiniciar, ejecuta el SQL en Supabase directamente.', 'info');
         } catch (err) { UI.toast(err.message, 'error'); }
         UI.setLoading(false);
       },
     });
   }
 
-  // ─── Historial por auxiliar ────────────────────────────────────────────────
-  async function verHistorialAuxiliar(auxId, auxNombre) {
-    await UI.showHistorialAuxiliar(auxId, auxNombre);
-  }
-
-  // ─── Ver firma ─────────────────────────────────────────────────────────────
-  function verFirma(url) {
-    UI.showModal({
-      title: '🖊️ Firma del Auxiliar',
-      body: `<div style="text-align:center">
-               <img src="${url}" alt="Firma" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:8px;" />
-             </div>`,
-      confirmLabel: 'Cerrar',
-      cancelLabel: '',
-      onConfirm: () => {},
-    });
-    // Ocultar botón cancelar
-    setTimeout(() => {
-      const cancelBtn = document.getElementById('modal-cancel');
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    }, 0);
-  }
-
-  return { init, navigateTo, editAuxiliar, toggleAuxiliar, exportCSV, anularMovimiento, verFirma, verHistorialAuxiliar };
+  return {
+    init, navigateTo, closeDrawer,
+    abrirFormularioDespacho, abrirFormularioRetorno,
+    verDetalleViaje, confirmarAnularViaje,
+    toggleConductor, toggleAuxiliar, verHistorialAuxiliar,
+  };
 })();
 
 document.addEventListener('DOMContentLoaded', APP.init);

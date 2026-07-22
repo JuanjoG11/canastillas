@@ -2,9 +2,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:       #2563EB;
-  --primary-dark:  #1D4ED8;
-  --primary-light: #DBEAFE;
+  --primary:       #1E3A5F;
+  --primary-dark:  #0F1F3D;
+  --primary-light: #D1E4F8;
   --accent:        #16A34A;
   --accent-light:  #DCFCE7;
   --danger:        #DC2626;
@@ -646,22 +646,44 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .table-wrapper { overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow); }
 .data-table {
   width: 100%; border-collapse: collapse;
-  background: var(--white); font-size: .875rem;
+  background: var(--white); font-size: .8125rem;
+  table-layout: fixed;
 }
 .data-table th {
-  background: var(--gray-50); color: var(--gray-600);
-  font-size: .75rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .04em; padding: .75rem 1rem; text-align: left;
+  background: var(--gray-50); color: var(--gray-500);
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; padding: .625rem .75rem; text-align: left;
   border-bottom: 2px solid var(--gray-200); white-space: nowrap;
 }
 .data-table td {
-  padding: .75rem 1rem; border-bottom: 1px solid var(--gray-100);
+  padding: .625rem .75rem; border-bottom: 1px solid var(--gray-100);
   color: var(--gray-700); vertical-align: middle;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: var(--gray-50); }
-.notas-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ref-number { font-size: .75rem; font-weight: 600; color: var(--gray-500); font-family: monospace; }
+
+/* Anchos fijos de columnas */
+.col-ref    { width: 130px; }
+.col-fecha  { width: 120px; }
+.col-tipo   { width: 140px; }
+.col-cant   { width: 58px; text-align: center !important; }
+.col-aux    { width: 140px; }
+.col-cliente{ width: 110px; }
+.col-notas  { }
+.col-acc    { width: 64px; text-align: center !important; }
+
+/* Celda referencia */
+.col-ref .ref-number { font-family: monospace; font-size: .72rem; font-weight: 700; color: var(--gray-500); }
+.ref-tags { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .2rem; }
+
+/* Tags compactos (anulado / contrapartida) */
+.hist-tag {
+  display: inline-block; font-size: .6rem; font-weight: 700;
+  border-radius: 3px; padding: .1rem .35rem; line-height: 1.4;
+}
+.hist-tag-anulado { background: var(--danger-light); color: #991B1B; }
+.hist-tag-contra  { background: var(--gray-200); color: var(--gray-600); }
 
 /* ─── Configuración ────────────────────────────────────────────────────────── */
 .config-section { max-width: 480px; }
@@ -793,13 +815,6 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
   white-space: nowrap;
 }
 
-/* ─── Tabla historial turno col ─────────────────────────────────────────────── */
-.data-table th:nth-child(6),
-.data-table td:nth-child(6) {
-  white-space: nowrap;
-  font-size: .8125rem;
-}
-
 /* ─── Modal de firma ────────────────────────────────────────────────────────── */
 .firma-overlay {
   position: fixed; inset: 0; z-index: 2000;
@@ -878,9 +893,9 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 /* ─── Botones de acción en historial ────────────────────────────────────────── */
 .btn-firma, .btn-anular {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px;
+  width: 26px; height: 26px;
   border: none; border-radius: var(--radius-sm);
-  cursor: pointer; font-size: .875rem;
+  cursor: pointer; font-size: .8125rem;
   transition: background var(--transition);
 }
 .btn-firma  { background: var(--primary-light); color: var(--primary); }
@@ -888,8 +903,288 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 .btn-anular { background: var(--danger-light); color: var(--danger); margin-left: .25rem; }
 .btn-anular:hover { background: #FECACA; }
 
-/* Columna acciones del historial */
-.data-table th:last-child,
-.data-table td:last-child {
-  width: 72px; text-align: center; white-space: nowrap;
+/* ═══════════════════════════════════════════════════════════════
+   VIAJES v2.0
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Helpers ──────────────────────────────────────────────────── */
+.neg  { color: #DC2626; font-weight: 600; }
+.pos  { color: #16A34A; font-weight: 600; }
+
+/* ─── Section header con botón ─────────────────────────────────── */
+.section-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem;
 }
+.section-header-row .section-title { margin-bottom: 0; }
+
+/* ─── KPI cards tipo envase ─────────────────────────────────────── */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem;
+}
+@media (max-width: 600px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi-card {
+  border-radius: var(--radius-sm); padding: .875rem 1rem;
+  background: var(--white); box-shadow: var(--shadow-sm);
+  border-left: 4px solid var(--gray-300, #D1D5DB);
+  display: flex; flex-direction: column; gap: .2rem;
+}
+.kpi-grandes  { border-left-color: #2563EB; }
+.kpi-medianas { border-left-color: #16A34A; }
+.kpi-pequenas { border-left-color: #D97706; }
+.kpi-estibas  { border-left-color: #7C3AED; }
+
+.kpi-label { font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--gray-500); }
+.kpi-value { font-size: 1.75rem; font-weight: 700; line-height: 1; color: var(--gray-900); }
+.kpi-sub   { font-size: .7rem; color: var(--gray-400); }
+
+/* ─── Dashboard grid ────────────────────────────────────────────── */
+.dashboard-grid-2 {
+  display: grid; grid-template-columns: 1fr; gap: 1rem;
+}
+@media (min-width: 700px) { .dashboard-grid-2 { grid-template-columns: 1fr 1fr; } }
+
+.card-title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: .875rem;
+}
+.card-title-row .card-title { margin-bottom: 0; }
+
+.viaje-abierto-row, .viaje-dash-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .4rem 0; border-bottom: 1px solid var(--gray-100); font-size: .875rem;
+}
+.viaje-abierto-row:last-child, .viaje-dash-row:last-child { border-bottom: none; }
+.viaje-dash-left { flex: 1; min-width: 0; }
+
+.dif-item { display: flex; align-items: center; gap: .375rem;
+  font-size: .875rem; padding: .25rem 0; }
+.dif-label { color: var(--gray-500); }
+.dif-val   { font-weight: 700; }
+
+/* ─── Filtros viajes ────────────────────────────────────────────── */
+.viajes-filters {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
+}
+@media (min-width: 600px) { .viajes-filters { grid-template-columns: repeat(3, 1fr); } }
+
+/* ─── Totales ───────────────────────────────────────────────────── */
+.totales-row {
+  display: flex; flex-wrap: wrap; gap: .625rem; margin-bottom: .875rem;
+}
+.totales-card {
+  background: var(--white); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm); padding: .625rem .875rem;
+  min-width: 160px; border-left: 3px solid var(--gray-300, #D1D5DB);
+}
+.totales-dif { border-left-color: var(--warning); }
+.totales-label { font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--gray-500); margin-bottom: .3rem; }
+.totales-grid {
+  display: flex; gap: .625rem; flex-wrap: wrap; font-size: .8125rem;
+}
+
+/* ─── Tabla de viajes (multi-header) ────────────────────────────── */
+.viajes-table {
+  font-size: .75rem;
+  table-layout: auto;
+  min-width: 900px; /* fuerza scroll horizontal en móvil */
+  border-collapse: collapse;
+}
+
+.viajes-table th, .viajes-table td {
+  padding: .4rem .5rem;
+  white-space: nowrap;
+  border: 1px solid var(--gray-200);
+  vertical-align: middle;
+}
+
+/* th grupos: fila 1 coloreada */
+.th-group {
+  text-align: center;
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-bottom: none;
+}
+.th-desp { background: #EFF6FF; color: #1D4ED8; }
+.th-ret  { background: #F0FDF4; color: #15803D; }
+.th-dif  { background: #FFFBEB; color: #B45309; }
+
+/* th sub (G M P E) — fila 2 */
+.th-sub {
+  text-align: center;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: .3rem .4rem;
+  border-top: none;
+  min-width: 32px;
+}
+.th-sub.th-desp { background: #EFF6FF; color: #2563EB; }
+.th-sub.th-ret  { background: #F0FDF4; color: #16A34A; }
+.th-sub.th-dif  { background: #FFFBEB; color: #D97706; }
+
+/* th fijos (rowspan=2) — se alinean al medio verticalmente */
+.th-vj {
+  background: var(--gray-50);
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--gray-500);
+  vertical-align: middle;
+}
+.th-fecha { width: 68px; }
+.th-ref   { width: 80px; }
+.th-placa { width: 68px; }
+.th-fact  { width: 76px; }
+.th-acc   { width: 36px; border: none; background: transparent !important; }
+
+/* celdas numéricas */
+.td-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+}
+.td-num-neg { color: var(--danger); font-weight: 700; }
+.td-num-viaje { font-family: monospace; font-size: .72rem; color: var(--gray-500); }
+
+/* Sobreescribir estilos base de data-table para viajes-table */
+.viajes-table > thead > tr > th {
+  background: var(--gray-50);
+  color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+  padding: .4rem .5rem;
+}
+/* Los th coloreados sobreescriben el gris base */
+.viajes-table .th-desp,
+.viajes-table .th-sub.th-desp { background: #EFF6FF !important; }
+.viajes-table .th-ret,
+.viajes-table .th-sub.th-ret  { background: #F0FDF4 !important; }
+.viajes-table .th-dif,
+.viajes-table .th-sub.th-dif  { background: #FFFBEB !important; }
+.viajes-table .th-acc         { background: var(--gray-50) !important; border-color: transparent !important; }
+
+/* botón de acción en tabla */
+.btn-accion {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border: none;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: .875rem;
+  transition: background var(--transition);
+}
+.btn-ver { background: var(--primary-light); color: var(--primary); }
+.btn-ver:hover { opacity: .8; }
+
+/* ─── Retorno cards ─────────────────────────────────────────────── */
+.retorno-card { margin-bottom: .75rem; }
+.retorno-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: .75rem; margin-bottom: .5rem;
+}
+.retorno-ref { font-size: .9375rem; font-weight: 600; }
+.retorno-desp { font-size: .8125rem; color: var(--gray-700); margin-bottom: .25rem; }
+.retorno-meta { font-size: .78rem; }
+
+/* ─── Drawer (sidebar derecho) ──────────────────────────────────── */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 800;
+  background: rgba(0,0,0,.35);
+  animation: fadeIn .15s ease;
+}
+.drawer-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 801;
+  width: min(500px, 100vw);
+  background: var(--white); box-shadow: -8px 0 32px rgba(0,0,0,.16);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .26s cubic-bezier(.4,0,.2,1);
+}
+.drawer-panel.drawer-open { transform: translateX(0); }
+
+.drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem; border-bottom: 1.5px solid var(--gray-200);
+  flex-shrink: 0; background: var(--gray-50);
+}
+.drawer-title { font-size: 1rem; font-weight: 700; color: var(--gray-900); }
+.drawer-close-btn {
+  background: var(--gray-200); border: none; color: var(--gray-700);
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .875rem; cursor: pointer;
+  transition: background var(--transition);
+}
+.drawer-close-btn:hover { background: var(--gray-300, #D1D5DB); }
+
+.drawer-body { flex: 1; overflow-y: auto; padding: 1.25rem; }
+
+/* ─── Formularios en drawer ─────────────────────────────────────── */
+.form-row-4 {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: .625rem;
+}
+@media (max-width: 500px) { .form-row-4 { grid-template-columns: repeat(2, 1fr); } }
+
+.form-section-label {
+  font-size: .78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--gray-500);
+  margin-bottom: .625rem; margin-top: .25rem;
+}
+
+/* Preview diferencia retorno */
+.dif-preview {
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm); padding: .5rem .75rem;
+  font-size: .8125rem; margin-bottom: 1rem; color: var(--gray-700);
+  display: flex; flex-wrap: wrap; gap: .5rem;
+}
+
+/* ─── Detalle viaje en drawer ───────────────────────────────────── */
+.detalle-grid { display: flex; flex-direction: column; gap: .5rem; }
+.detalle-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .375rem 0; border-bottom: 1px solid var(--gray-100);
+  font-size: .875rem;
+}
+.detalle-row:last-child { border-bottom: none; }
+.detalle-row span:first-child { color: var(--gray-500); font-size: .8125rem; min-width: 90px; }
+
+/* ─── Cabecera retorno en drawer ────────────────────────────────── */
+.retorno-detalle-header {
+  background: var(--gray-50); border-radius: var(--radius-sm);
+  padding: .75rem 1rem; margin-bottom: 1rem;
+}
+.desp-resumen { font-size: .8125rem; color: var(--gray-700); margin-top: .375rem; }
+
+/* ─── Conductores/Auxiliares persona-card (lista compacta) ──────── */
+.persona-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .625rem .875rem; background: var(--white);
+  border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+  box-shadow: var(--shadow-sm); margin-bottom: .5rem; gap: .75rem;
+  transition: box-shadow var(--transition);
+}
+.persona-card:hover { box-shadow: var(--shadow); border-color: var(--primary); }
+.persona-card.inactive { opacity: .6; }
+.persona-info { flex: 1; min-width: 0; }
+.persona-nombre { font-weight: 600; font-size: .875rem; color: var(--gray-900); }
+.persona-cedula { font-size: .75rem; color: var(--gray-400); }
+.persona-actions { display: flex; align-items: center; gap: .375rem; flex-shrink: 0; }
+
+/* ─── Config cols ───────────────────────────────────────────────── */
+.config-cols { display: flex; flex-direction: column; gap: 1.25rem; max-width: 560px; }
+
+/* ─── Sidebar v2 ────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .sidebar { width: 220px; }
+  .sidebar .sidebar-label {
+    font-size: .62rem; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--gray-400);
+    padding: .75rem 1.25rem .2rem;
+  }
+}
+
+.viaje-row td { border-color: var(--gray-100); }
+.viaje-row:hover td { background: #F5F9FF; }
