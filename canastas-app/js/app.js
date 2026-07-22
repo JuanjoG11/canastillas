@@ -615,14 +615,8 @@ const APP = (() => {
   async function exportarViajesCSV() {
     UI.setLoading(true);
     try {
-      const csv  = await DB_VIAJES.exportViajesCSV();
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = `viajes-${new Date().toISOString().slice(0,10)}.csv`;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
-      UI.toast('CSV exportado', 'success');
+      await EXCEL.exportarViajes(viajesFiltros);
+      UI.toast('✓ Excel exportado con 3 hojas', 'success');
     } catch (err) { UI.toast('Error: ' + err.message, 'error'); }
     UI.setLoading(false);
   }
