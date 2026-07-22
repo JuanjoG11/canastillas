@@ -128,6 +128,11 @@ const DB_VIAJES = (() => {
     return data || [];
   }
 
+  async function getViajesPorConductor(conductor_id, limit = 100) {
+    const data = await GET(`/viajes?conductor_id=eq.${conductor_id}&order=fecha.desc,created_at.desc&limit=${limit}`);
+    return data || [];
+  }
+
   async function registrarViaje({
     conductor_id, auxiliar_id, placa, remolque, numero_factura,
     desp_grandes, desp_medianas, desp_pequenas, desp_estibas,
@@ -193,6 +198,14 @@ const DB_VIAJES = (() => {
       updated_at: new Date().toISOString(),
     });
     return viaje;
+  }
+
+  async function editarViaje(viajeId, campos) {
+    const viaje = await getViajeById(viajeId);
+    if (!viaje) throw new Error('Viaje no encontrado');
+    if (viaje.estado !== 'abierto') throw new Error('Solo se pueden editar viajes pendientes');
+    await PATCH(`/viajes?id=eq.${viajeId}`, { ...campos, updated_at: new Date().toISOString() });
+    invalidateCache();
   }
 
   async function guardarFirmaDespacho(viajeId, firmaUrl) {
@@ -294,8 +307,8 @@ const DB_VIAJES = (() => {
     getConductores, getConductorById, addConductor, updateConductor,
     deactivateConductor, reactivateConductor,
     getInventarioInicial, setInventarioInicial,
-    getViajes, getViajesAbiertos, getViajeById, getViajesPorAuxiliar,
-    registrarViaje, registrarRetorno, anularViaje,
+    getViajes, getViajesAbiertos, getViajeById, getViajesPorAuxiliar, getViajesPorConductor,
+    registrarViaje, registrarRetorno, anularViaje, editarViaje,
     guardarFirmaDespacho, guardarFirmaRetorno,
     exportViajesCSV, calcularDiferenciaAcumulada,
     invalidateCache,

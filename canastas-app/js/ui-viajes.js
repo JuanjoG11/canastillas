@@ -50,18 +50,25 @@ const UI_VIAJES = (() => {
         </div>`;
       document.getElementById('kpi-row').innerHTML = kpiHtml;
 
-      // Viajes abiertos (sin retorno)
+      // Viajes abiertos (sin retorno) con semáforo
       const abiertos = viajes.filter(v => v.estado === 'abierto');
       document.getElementById('dash-abiertos-count').textContent = abiertos.length;
       const dashAbiertosEl = document.getElementById('dash-viajes-abiertos');
       if (abiertos.length === 0) {
-        dashAbiertosEl.innerHTML = '<p class="text-muted small">No hay viajes pendientes</p>';
+        dashAbiertosEl.innerHTML = '<p class="text-muted small">✅ Sin viajes pendientes</p>';
       } else {
-        dashAbiertosEl.innerHTML = abiertos.slice(0, 5).map(v => {
+        dashAbiertosEl.innerHTML = abiertos.map(v => {
           const dias = Math.floor((Date.now() - new Date(v.fecha)) / 86400000);
+          const sem  = dias === 0 ? 'green' : dias <= 2 ? 'yellow' : 'red';
+          const txt  = dias === 0 ? 'Hoy' : dias === 1 ? 'Hace 1 día' : `Hace ${dias} días`;
           return `<div class="viaje-abierto-row">
-            <div><strong>${UI.escapeHtml(v.placa)}</strong> · ${v.numero_viaje}</div>
-            <div class="text-muted small">Hace ${dias} día${dias !== 1 ? 's' : ''}</div>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span class="semaforo semaforo-${sem}" title="${txt}"></span>
+              <div>
+                <strong>${UI.escapeHtml(v.placa)}</strong> · <span class="text-muted" style="font-size:.8rem">${v.numero_viaje}</span>
+              </div>
+            </div>
+            <div class="text-muted small" style="white-space:nowrap">${txt}</div>
           </div>`;
         }).join('');
       }
@@ -114,8 +121,68 @@ const UI_VIAJES = (() => {
           </div>`;
         }).join('');
       }
+      // Gráfico semanal: últimas 6 semanas
+      _renderGraficoSemanal(viajes);
+
     } catch (err) { UI.toast('Error al cargar dashboard: ' + err.message, 'error'); }
     UI.setLoading(false);
+  }
+
+  // ─── Gráfico semanal (SVG puro) ───────────────────────────────────────────
+  function _renderGraficoSemanal(viajes) {
+    const el = document.getElementById('dash-grafico-semanal');
+    if (!el) return;
+
+    // Agrupar por semana (lunes)
+    const semanas = {};
+    viajes.forEach(v => {
+      const d = new Date(v.fecha + 'T00:00:00');
+      const dow = d.getDay() || 7; // 1=lun 7=dom
+      const lunes = new Date(d); lunes.setDate(d.getDate() - dow + 1);
+      const key = lunes.toISOString().split('T')[0];
+      if (!semanas[key]) semanas[key] = { desp: 0, ret: 0, pendientes: 0 };
+      const tot = (v.desp_grandes||0)+(v.desp_medianas||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
+      semanas[key].desp += tot;
+      if (v.ret_grandes !== null) {
+        const totR = (v.ret_grandes||0)+(v.ret_medianas||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
+        semanas[key].ret += totR;
+      } else {
+        semanas[key].pendientes++;
+      }
+    });
+
+    const keys = Object.keys(semanas).sort().slice(-6);
+    if (keys.length === 0) { el.innerHTML = '<p class="text-muted small">Sin datos para graficar</p>'; return; }
+
+    const maxVal = Math.max(...keys.map(k => semanas[k].desp), 1);
+    const W = 100 / keys.length;
+    const BAR_H = 80;
+
+    const bars = keys.map((k, i) => {
+      const s = semanas[k];
+      const hD = (s.desp / maxVal) * BAR_H;
+      const hR = (s.ret  / maxVal) * BAR_H;
+      const x  = i * W + W * 0.1;
+      const bw = W * 0.38;
+      const label = k.slice(5); // MM-DD
+      return `
+        <rect x="${x}%" y="${BAR_H - hD}%" width="${bw}%" height="${hD}%" fill="#2563EB" rx="2" opacity=".85">
+          <title>Desp: ${s.desp}</title>
+        </rect>
+        <rect x="${x + W*0.42}%" y="${BAR_H - hR}%" width="${bw}%" height="${hR}%" fill="#16A34A" rx="2" opacity=".85">
+          <title>Ret: ${s.ret}</title>
+        </rect>
+        <text x="${x + W*0.4}%" y="98%" text-anchor="middle" font-size="7" fill="#6B7280">${label}</text>`;
+    }).join('');
+
+    el.innerHTML = `
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:120px;display:block">
+        ${bars}
+      </svg>
+      <div style="display:flex;gap:1rem;margin-top:.375rem;font-size:.72rem;color:var(--gray-500)">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#2563EB;border-radius:2px;margin-right:3px"></span>Despachado</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#16A34A;border-radius:2px;margin-right:3px"></span>Retornado</span>
+      </div>`;
   }
 
   // ─── Viajes tabla ─────────────────────────────────────────────────────────
@@ -138,9 +205,10 @@ const UI_VIAJES = (() => {
 
       // Filtrar
       let filtered = viajes;
-      if (filtros.fechaDesde) filtered = filtered.filter(v => v.fecha >= filtros.fechaDesde);
-      if (filtros.fechaHasta) filtered = filtered.filter(v => v.fecha <= filtros.fechaHasta);
+      if (filtros.fechaDesde)   filtered = filtered.filter(v => v.fecha >= filtros.fechaDesde);
+      if (filtros.fechaHasta)   filtered = filtered.filter(v => v.fecha <= filtros.fechaHasta);
       if (filtros.estado && filtros.estado !== 'todos') filtered = filtered.filter(v => v.estado === filtros.estado);
+      if (filtros.conductor_id) filtered = filtered.filter(v => v.conductor_id === filtros.conductor_id);
 
       // Calcular totales
       let totDesp = { grandes: 0, medianas: 0, pequenas: 0, estibas: 0 };
@@ -297,7 +365,10 @@ const UI_VIAJES = (() => {
       listEl.innerHTML = conductores.map(c => {
         const statusClass = c.activo ? 'badge-green' : 'badge-gray';
         const statusLabel = c.activo ? 'Activo' : 'Inactivo';
-        return `<div class="persona-card ${!c.activo ? 'inactive' : ''}">
+        const safeName = UI.escapeHtml(c.nombre).replace(/'/g, "\\'");
+        return `<div class="persona-card ${!c.activo ? 'inactive' : ''}"
+          onclick="APP.verHistorialConductor('${c.id}','${safeName}')"
+          style="cursor:pointer" title="Ver viajes">
           <div class="persona-info">
             <div class="persona-nombre">${UI.escapeHtml(c.nombre)}</div>
             <div class="persona-cedula">CC: ${UI.escapeHtml(c.cedula)}</div>
@@ -305,8 +376,8 @@ const UI_VIAJES = (() => {
           <div class="persona-actions">
             <span class="badge ${statusClass}">${statusLabel}</span>
             ${c.activo
-              ? `<button class="btn btn-sm btn-danger" onclick="APP.toggleConductor('${c.id}', false)">Desactivar</button>`
-              : `<button class="btn btn-sm btn-primary" onclick="APP.toggleConductor('${c.id}', true)">Activar</button>`
+              ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();APP.toggleConductor('${c.id}', false)">Desactivar</button>`
+              : `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();APP.toggleConductor('${c.id}', true)">Activar</button>`
             }
           </div>
         </div>`;

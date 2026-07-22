@@ -268,8 +268,29 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .main-content {
   flex: 1; overflow-y: auto;
   padding: 1.25rem 1rem 1.5rem;
-  max-width: 900px; width: 100%;
-  margin: 0 auto;
+  width: 100%;
+}
+
+/* Secciones que se ven mejor con ancho limitado */
+#section-dashboard .section-inner,
+#section-configuracion .config-cols,
+#section-auxiliares,
+#section-conductores,
+#section-retornos {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Viajes y dashboard usan el ancho completo */
+#section-viajes {
+  max-width: 100%;
+}
+
+/* Tabla viajes: columnas de conductor y auxiliar más anchas en pantallas grandes */
+@media (min-width: 1100px) {
+  .viajes-table { font-size: .8125rem; }
+  .viajes-table th, .viajes-table td { padding: .5rem .625rem; }
 }
 
 /* ─── Bottom navigation (mobile) ──────────────────────────────────────────── */
@@ -331,7 +352,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     padding: .5rem 1.25rem .25rem;
   }
 
-  .main-content { padding: 1.75rem 2rem; }
+  .main-content { padding: 1.5rem 1.75rem; }
 }
 
 /* ─── Sidebar hidden on mobile ─────────────────────────────────────────────── */
@@ -937,7 +958,7 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 
 .kpi-label { font-size: .7rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .05em; color: var(--gray-500); }
-.kpi-value { font-size: 1.75rem; font-weight: 700; line-height: 1; color: var(--gray-900); }
+.kpi-value { font-size: 2.25rem; font-weight: 700; line-height: 1; color: var(--gray-900); }
 .kpi-sub   { font-size: .7rem; color: var(--gray-400); }
 
 /* ─── Dashboard grid ────────────────────────────────────────────── */
@@ -968,7 +989,7 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 .viajes-filters {
   display: grid; grid-template-columns: 1fr 1fr; gap: .75rem;
 }
-@media (min-width: 600px) { .viajes-filters { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 600px) { .viajes-filters { grid-template-columns: repeat(4, 1fr); } }
 
 /* ─── Totales ───────────────────────────────────────────────────── */
 .totales-row {

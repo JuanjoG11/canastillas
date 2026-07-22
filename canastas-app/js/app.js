@@ -45,6 +45,10 @@ const APP = (() => {
     document.getElementById('btn-vf-filtrar').addEventListener('click', aplicarFiltrosViajes);
     document.getElementById('btn-vf-limpiar').addEventListener('click', limpiarFiltrosViajes);
     document.getElementById('btn-vf-csv').addEventListener('click', exportarViajesCSV);
+    document.getElementById('vf-conductor-txt')?.addEventListener('input', () => {
+      if (!document.getElementById('vf-conductor-txt').value.trim())
+        document.getElementById('vf-conductor').value = '';
+    });
 
     // Búsqueda conductores
     document.getElementById('search-conductores-input')?.addEventListener('input', (e) => {
@@ -75,7 +79,18 @@ const APP = (() => {
       if (e.key === 'Escape') closeDrawer();
     });
 
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+      navigator.serviceWorker.addEventListener('message', e => {
+        if (e.data?.type === 'QUEUE_FLUSHED') UI.toast('✓ Operaciones offline sincronizadas', 'success');
+      });
+    }
+    // Indicador online/offline
+    window.addEventListener('offline', () => UI.toast('Sin conexión — los cambios se sincronizarán al reconectar', 'info'));
+    window.addEventListener('online',  () => {
+      UI.toast('Conexión restaurada', 'success');
+      navigator.serviceWorker?.ready.then(sw => sw.sync?.register('sync-queue').catch(()=>{}));
+    });
   }
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -112,7 +127,15 @@ const APP = (() => {
     try {
       switch (section) {
         case 'dashboard':     await UI_VIAJES.renderDashboard();                         break;
-        case 'viajes':        await UI_VIAJES.renderViajes(viajesFiltros);               break;
+        case 'viajes':
+          await UI_VIAJES.renderViajes(viajesFiltros);
+          // Inicializar autocomplete del filtro de conductor
+          try {
+            const conds = await DB_VIAJES.getConductores(false);
+            _bindInlineSearch('vf-conductor-txt','vf-conductor-list','vf-conductor',
+              conds, c => c.nombre, c => `CC: ${c.cedula}`);
+          } catch {}
+          break;
         case 'retornos':      await UI_VIAJES.renderRetornos();                          break;
         case 'conductores':   await UI_VIAJES.renderConductores();                       break;
         case 'auxiliares':    await UI.renderAuxiliares();                               break;
@@ -478,6 +501,9 @@ const APP = (() => {
     const retornarBtn = viaje.estado === 'abierto'
       ? `<button class="btn btn-primary btn-sm" onclick="APP.abrirFormularioRetorno('${viaje.id}')">Registrar retorno</button>`
       : '';
+    const editarBtn = viaje.estado === 'abierto'
+      ? `<button class="btn btn-secondary btn-sm" onclick="APP.abrirFormularioEditarViaje('${viaje.id}')">✏️ Editar</button>`
+      : '';
 
     openDrawer(`🚛 Viaje ${UI.escapeHtml(viaje.numero_viaje)}`, `
       <div class="detalle-grid">
@@ -504,6 +530,7 @@ const APP = (() => {
       </div>
       <div style="display:flex;gap:.5rem;margin-top:1.25rem;flex-wrap:wrap">
         ${retornarBtn}
+        ${editarBtn}
         ${anularBtn}
       </div>
     `);
@@ -511,6 +538,84 @@ const APP = (() => {
 
   const ESTADOS_BADGE_MAP = { abierto: 'badge-orange', cerrado: 'badge-green', anulado: 'badge-gray' };
   const ESTADOS_LABEL_MAP = { abierto: 'Pendiente', cerrado: 'Cerrado', anulado: 'Anulado' };
+
+  // ─── Editar viaje (solo mientras esté abierto) ────────────────────────────
+  async function abrirFormularioEditarViaje(viajeId) {
+    const viaje = await DB_VIAJES.getViajeById(viajeId);
+    if (!viaje) return;
+    if (viaje.estado !== 'abierto') { UI.toast('Solo se pueden editar viajes pendientes', 'error'); return; }
+
+    openDrawer(`✏️ Editar ${UI.escapeHtml(viaje.numero_viaje)}`, `
+      <div class="field-info" style="margin-bottom:1rem">
+        ⚠️ Solo se pueden editar las cantidades despachadas mientras el viaje esté pendiente.
+      </div>
+      <form id="form-editar-viaje" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Placa *</label>
+            <input id="edit-placa" class="form-control" type="text" value="${UI.escapeHtml(viaje.placa)}" />
+          </div>
+          <div class="form-group">
+            <label>Remolque</label>
+            <input id="edit-remolque" class="form-control" type="text" value="${UI.escapeHtml(viaje.remolque || '')}" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label># Factura</label>
+          <input id="edit-factura" class="form-control" type="text" value="${UI.escapeHtml(viaje.numero_factura || '')}" />
+        </div>
+        <hr class="divider" />
+        <div class="form-section-label">📤 Cantidades despachadas</div>
+        <div class="form-row-4">
+          <div class="form-group">
+            <label>Grandes</label>
+            <input id="edit-grandes"  class="form-control" type="number" min="0" value="${viaje.desp_grandes}" />
+          </div>
+          <div class="form-group">
+            <label>Medianas</label>
+            <input id="edit-medianas" class="form-control" type="number" min="0" value="${viaje.desp_medianas}" />
+          </div>
+          <div class="form-group">
+            <label>Pequeñas</label>
+            <input id="edit-pequenas" class="form-control" type="number" min="0" value="${viaje.desp_pequenas}" />
+          </div>
+          <div class="form-group">
+            <label>Estibas</label>
+            <input id="edit-estibas"  class="form-control" type="number" min="0" value="${viaje.desp_estibas}" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Observaciones</label>
+          <textarea id="edit-obs" class="form-control">${UI.escapeHtml(viaje.observaciones || '')}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Guardar cambios</button>
+      </form>
+    `);
+
+    document.getElementById('form-editar-viaje').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const placa = document.getElementById('edit-placa').value.trim();
+      if (!placa) { UI.toast('La placa es obligatoria', 'error'); return; }
+      UI.setLoading(true);
+      try {
+        await DB_VIAJES.editarViaje(viajeId, {
+          placa:          placa.toUpperCase(),
+          remolque:       document.getElementById('edit-remolque').value.trim().toUpperCase() || null,
+          numero_factura: document.getElementById('edit-factura').value.trim() || null,
+          desp_grandes:   parseInt(document.getElementById('edit-grandes').value,  10) || 0,
+          desp_medianas:  parseInt(document.getElementById('edit-medianas').value, 10) || 0,
+          desp_pequenas:  parseInt(document.getElementById('edit-pequenas').value, 10) || 0,
+          desp_estibas:   parseInt(document.getElementById('edit-estibas').value,  10) || 0,
+          observaciones:  document.getElementById('edit-obs').value,
+        });
+        DB_VIAJES.invalidateCache();
+        closeDrawer();
+        UI.toast('✓ Viaje actualizado', 'success');
+        await navigateTo('viajes');
+      } catch (err) { UI.toast(err.message, 'error'); }
+      UI.setLoading(false);
+    });
+  }
 
   // ─── Ver firma de viaje ─────────────────────────────────────────────────────
   function verFirmaViaje(url, titulo) {
@@ -597,9 +702,10 @@ const APP = (() => {
   // ─── Filtros viajes ─────────────────────────────────────────────────────────
   async function aplicarFiltrosViajes() {
     viajesFiltros = {
-      fechaDesde: document.getElementById('vf-desde').value || null,
-      fechaHasta: document.getElementById('vf-hasta').value || null,
-      estado:     document.getElementById('vf-estado').value || 'todos',
+      fechaDesde:   document.getElementById('vf-desde').value || null,
+      fechaHasta:   document.getElementById('vf-hasta').value || null,
+      estado:       document.getElementById('vf-estado').value || 'todos',
+      conductor_id: document.getElementById('vf-conductor')?.value || null,
     };
     await UI_VIAJES.renderViajes(viajesFiltros);
   }
@@ -609,6 +715,10 @@ const APP = (() => {
     document.getElementById('vf-desde').value = '';
     document.getElementById('vf-hasta').value = '';
     document.getElementById('vf-estado').value = 'todos';
+    const txt = document.getElementById('vf-conductor-txt');
+    const hid = document.getElementById('vf-conductor');
+    if (txt) txt.value = '';
+    if (hid) hid.value = '';
     await UI_VIAJES.renderViajes({});
   }
 
@@ -653,7 +763,90 @@ const APP = (() => {
     });
   }
 
-  // ─── Helper: búsqueda inline para selects en drawer ──────────────────────
+  // ─── Historial por conductor ───────────────────────────────────────────────
+  async function verHistorialConductor(condId, condNombre) {
+    document.getElementById('aux-drawer-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'aux-drawer-overlay';
+    overlay.className = 'aux-drawer-overlay';
+    const drawer = document.createElement('div');
+    drawer.className = 'aux-drawer';
+    drawer.innerHTML = `
+      <div class="aux-drawer-header">
+        <div class="aux-drawer-header-top">
+          <div>
+            <div class="aux-drawer-nombre">🧑‍✈️ ${UI.escapeHtml(condNombre)}</div>
+            <div class="aux-drawer-cedula" id="cond-drawer-sub">Cargando...</div>
+          </div>
+          <button class="aux-drawer-close" id="cond-drawer-close">✕</button>
+        </div>
+        <div class="aux-drawer-chips" id="cond-drawer-chips"><span class="aux-chip">⏳</span></div>
+      </div>
+      <div class="aux-drawer-body" id="cond-drawer-body">
+        <div class="aux-drawer-empty"><div class="aux-drawer-empty-icon">⏳</div><div>Cargando...</div></div>
+      </div>`;
+    overlay.appendChild(drawer);
+    document.body.appendChild(overlay);
+    const close = () => { overlay.style.animation='fadeIn .15s ease reverse'; drawer.style.animation='drawerIn .18s ease reverse'; setTimeout(()=>overlay.remove(),160); };
+    overlay.addEventListener('click', e => { if(e.target===overlay) close(); });
+    document.getElementById('cond-drawer-close').addEventListener('click', close);
+    const onKey = e => { if(e.key==='Escape'){close();document.removeEventListener('keydown',onKey);} };
+    document.addEventListener('keydown', onKey);
+
+    try {
+      const [viajes, cond] = await Promise.all([
+        DB_VIAJES.getViajesPorConductor(condId),
+        DB_VIAJES.getConductorById(condId),
+      ]);
+      document.getElementById('cond-drawer-sub').textContent = cond ? `CC: ${cond.cedula}` : '';
+
+      const cerrados  = viajes.filter(v=>v.estado==='cerrado').length;
+      const pendientes= viajes.filter(v=>v.estado==='abierto').length;
+      let totDesp=0, totRet=0, totDif=0;
+      viajes.forEach(v=>{
+        totDesp+=(v.desp_grandes||0)+(v.desp_medianas||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
+        if(v.ret_grandes!==null) totRet+=(v.ret_grandes||0)+(v.ret_medianas||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
+      });
+      totDif = totDesp - totRet;
+
+      document.getElementById('cond-drawer-chips').innerHTML =
+        `<span class="aux-chip">📋 ${viajes.length} viaje${viajes.length!==1?'s':''}</span>` +
+        `<span class="aux-chip">✅ ${cerrados} cerrados</span>` +
+        (pendientes>0?`<span class="aux-chip" style="background:rgba(217,119,6,.25)">⏳ ${pendientes} pendiente${pendientes!==1?'s':''}</span>`:'') +
+        `<span class="aux-chip ${totDif<0?'neg':''}">⚖️ Dif: ${totDif>0?'+':''}${totDif}</span>`;
+
+      const bodyEl = document.getElementById('cond-drawer-body');
+      if(viajes.length===0){ bodyEl.innerHTML=`<div class="aux-drawer-empty"><div class="aux-drawer-empty-icon">📭</div><div>Sin viajes registrados</div></div>`; return; }
+
+      bodyEl.innerHTML = '<div class="aux-timeline">' + viajes.map(v=>{
+        const dias = Math.floor((Date.now()-new Date(v.fecha))/86400000);
+        const sem  = v.estado==='abierto' ? (dias===0?'green':dias<=2?'yellow':'red') : null;
+        const dG=v.ret_grandes!==null?v.desp_grandes-v.ret_grandes:null;
+        const dM=v.ret_medianas!==null?v.desp_medianas-v.ret_medianas:null;
+        const dP=v.ret_pequenas!==null?v.desp_pequenas-v.ret_pequenas:null;
+        const dE=v.ret_estibas!==null?v.desp_estibas-v.ret_estibas:null;
+        const icon=v.estado==='cerrado'?'📦':v.estado==='anulado'?'❌':'🚛';
+        const ic = v.estado==='cerrado'?'tipo-entrada_auxiliar':v.estado==='anulado'?'tipo-anulado':'tipo-salida_auxiliar';
+        const eb = v.estado==='abierto'?`<span class="aux-tl-anulado-badge" style="background:#FEF3C7;color:#92400E">Pendiente ${sem?`· Hace ${dias}d`:''}</span>`
+          :v.estado==='cerrado'?'<span class="aux-tl-anulado-badge" style="background:#DCFCE7;color:#15803D">Cerrado</span>'
+          :'<span class="aux-tl-anulado-badge">Anulado</span>';
+        return `<div class="aux-tl-item">
+          <div class="aux-tl-icon ${ic}">${icon}</div>
+          <div class="aux-tl-content">
+            <div class="aux-tl-top"><span class="aux-tl-tipo">${UI.escapeHtml(v.numero_viaje)} · ${UI.escapeHtml(v.placa)} ${eb}</span></div>
+            <div class="aux-tl-ref">📤 ${v.desp_grandes}G·${v.desp_medianas}M·${v.desp_pequenas}P·${v.desp_estibas}E</div>
+            ${dG!==null?`<div class="aux-tl-ref">📥 ${v.ret_grandes}G·${v.ret_medianas}M·${v.ret_pequenas}P·${v.ret_estibas}E</div>
+              <div class="aux-tl-meta"><span class="${(dG+dM+dP+dE)<0?'neg':'pos'}">Dif: ${dG}G·${dM}M·${dP}P·${dE}E</span></div>`:''}
+            <div class="aux-tl-meta"><span>📅 ${v.fecha}</span></div>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+    } catch(err){
+      document.getElementById('cond-drawer-body').innerHTML=`<div class="aux-drawer-empty"><div class="aux-drawer-empty-icon">⚠️</div><div>${UI.escapeHtml(err.message)}</div></div>`;
+    }
+  }
+
+  // ─── Helper: búsqueda inline ───────────────────────────────────────────────
   function _bindInlineSearch(inputId, listId, hiddenId, items, labelFn, sublabelFn, onNoMatch) {
     const input  = document.getElementById(inputId);
     const list   = document.getElementById(listId);
@@ -701,9 +894,9 @@ const APP = (() => {
 
   return {
     init, navigateTo, closeDrawer,
-    abrirFormularioDespacho, abrirFormularioRetorno,
+    abrirFormularioDespacho, abrirFormularioRetorno, abrirFormularioEditarViaje,
     verDetalleViaje, confirmarAnularViaje, verFirmaViaje,
-    toggleConductor, toggleAuxiliar, verHistorialAuxiliar,
+    toggleConductor, toggleAuxiliar, verHistorialAuxiliar, verHistorialConductor,
   };
 })();
 
