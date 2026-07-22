@@ -134,60 +134,122 @@ const UI = (() => {
     document.addEventListener('keydown', onKey);
 
     try {
-      const [movs, aux] = await Promise.all([DB.getMovimientosPorAuxiliar(auxId), DB.getAuxiliarById(auxId)]);
+      // Buscar tanto en movimientos (modelo viejo) como en viajes (modelo nuevo)
+      const [movs, viajesAux, aux] = await Promise.all([
+        DB.getMovimientosPorAuxiliar(auxId),
+        DB_VIAJES.getViajesPorAuxiliar(auxId),
+        DB.getAuxiliarById(auxId),
+      ]);
+
       document.getElementById('aux-drawer-cedula').textContent = aux ? `CC: ${aux.cedula}` : '';
       const chipsEl = document.getElementById('aux-drawer-chips');
-      chipsEl.innerHTML = (aux?.activo ? '<span class="aux-chip">✅ Activo</span>' : '<span class="aux-chip">⛔ Inactivo</span>') +
-        `<span class="aux-chip">📋 ${movs.length} mov.</span>`;
+      const totalItems = movs.length + viajesAux.length;
+      chipsEl.innerHTML =
+        (aux?.activo ? '<span class="aux-chip">✅ Activo</span>' : '<span class="aux-chip">⛔ Inactivo</span>') +
+        `<span class="aux-chip">📋 ${totalItems} registro${totalItems !== 1 ? 's' : ''}</span>`;
+
       const bodyEl = document.getElementById('aux-drawer-body');
-      if (movs.length === 0) {
+
+      if (totalItems === 0) {
         bodyEl.innerHTML = `<div class="aux-drawer-empty"><div class="aux-drawer-empty-icon">📭</div><div>Sin movimientos</div></div>`;
         return;
       }
-      // Agrupar por día
-      const groups = {};
-      movs.forEach(m => {
-        const d = new Date(m.fecha);
-        const key = d.toISOString().split('T')[0];
-        const hoy = new Date(); hoy.setHours(0,0,0,0);
-        const ayer = new Date(hoy); ayer.setDate(hoy.getDate()-1);
-        const mDate = new Date(d); mDate.setHours(0,0,0,0);
-        let label = mDate.getTime() === hoy.getTime() ? 'Hoy'
-          : mDate.getTime() === ayer.getTime() ? 'Ayer'
-          : d.toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-        if (!groups[key]) groups[key] = { label, items: [] };
-        groups[key].items.push(m);
-      });
+
       let html = '<div class="aux-timeline">';
-      Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(key => {
-        const g = groups[key];
-        html += `<div class="aux-tl-date-group"><div class="aux-tl-date-label">${g.label}</div>`;
-        g.items.forEach(m => {
-          const anulado  = m.anulado;
-          const esEspejo = m.notas?.startsWith('Anulación de');
-          const iconClass = anulado || esEspejo ? 'tipo-anulado' : `tipo-${m.tipo}`;
-          const hora = new Date(m.fecha).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
-          const aB = anulado  ? '<span class="aux-tl-anulado-badge">Anulado</span>' : '';
-          const eB = esEspejo ? '<span class="aux-tl-anulado-badge" style="background:var(--gray-100);color:var(--gray-500)">Contrapartida</span>' : '';
+
+      // ── Viajes (nuevo modelo) ─────────────────────────────────────────────
+      if (viajesAux.length > 0) {
+        html += `<div class="aux-tl-date-label" style="margin-bottom:.75rem;margin-top:.25rem">🚛 Viajes registrados</div>`;
+        viajesAux.forEach(v => {
+          const fecha = new Date(v.created_at || v.fecha);
+          const hora  = fecha.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+          const difG  = v.ret_grandes  !== null ? v.desp_grandes  - v.ret_grandes  : null;
+          const difM  = v.ret_medianas !== null ? v.desp_medianas - v.ret_medianas : null;
+          const difP  = v.ret_pequenas !== null ? v.desp_pequenas - v.ret_pequenas : null;
+          const difE  = v.ret_estibas  !== null ? v.desp_estibas  - v.ret_estibas  : null;
+          const iconClass = v.estado === 'cerrado' ? 'tipo-entrada_auxiliar' : v.estado === 'anulado' ? 'tipo-anulado' : 'tipo-salida_auxiliar';
+          const icon      = v.estado === 'cerrado' ? '📦' : v.estado === 'anulado' ? '❌' : '🚛';
+          const estadoBadge = v.estado === 'abierto'
+            ? '<span class="aux-tl-anulado-badge" style="background:#FEF3C7;color:#92400E">Pendiente</span>'
+            : v.estado === 'cerrado'
+              ? '<span class="aux-tl-anulado-badge" style="background:#DCFCE7;color:#15803D">Cerrado</span>'
+              : '<span class="aux-tl-anulado-badge">Anulado</span>';
+
           html += `<div class="aux-tl-item">
-            <div class="aux-tl-icon ${iconClass}">${TIPO_ICONS[m.tipo]||'↔️'}</div>
+            <div class="aux-tl-icon ${iconClass}">${icon}</div>
             <div class="aux-tl-content">
               <div class="aux-tl-top">
-                <span class="aux-tl-tipo" style="${anulado?'text-decoration:line-through;opacity:.6':''}">${TIPO_LABELS[m.tipo]||m.tipo} ${aB}${eB}</span>
-                <span class="aux-tl-cant">${m.cantidad} 🧺</span>
+                <span class="aux-tl-tipo">${escapeHtml(v.numero_viaje)} · ${escapeHtml(v.placa)} ${estadoBadge}</span>
               </div>
-              <div class="aux-tl-ref">${escapeHtml(m.referencia_numero)}</div>
-              <div class="aux-tl-meta">
-                <span>🕐 ${hora}</span>
-                ${m.cliente_nombre ? `<span>👤 ${escapeHtml(m.cliente_nombre)}</span>` : ''}
-                ${m.firma_url ? '<span>🖊️ Firmado</span>' : ''}
+              <div class="aux-tl-ref">📤 ${v.desp_grandes}G · ${v.desp_medianas}M · ${v.desp_pequenas}P · ${v.desp_estibas}E</div>
+              ${v.ret_grandes !== null
+                ? `<div class="aux-tl-ref">📥 ${v.ret_grandes}G · ${v.ret_medianas}M · ${v.ret_pequenas}P · ${v.ret_estibas}E</div>
+                   <div class="aux-tl-meta">
+                     <span class="${difG < 0 ? 'neg' : difG > 0 ? 'pos' : ''}">Dif: ${difG}G · ${difM}M · ${difP}P · ${difE}E</span>
+                   </div>`
+                : ''
+              }
+              <div class="aux-tl-meta"><span>📅 ${v.fecha} · 🕐 ${hora}</span>
+                ${v.firma_despacho_url ? '<span>🖊️ Firmado despacho</span>' : ''}
+                ${v.firma_retorno_url  ? '<span>🖊️ Firmado retorno</span>'  : ''}
               </div>
-              ${m.notas ? `<div class="aux-tl-notas">💬 ${escapeHtml(m.notas)}</div>` : ''}
             </div>
           </div>`;
         });
-        html += '</div>';
-      });
+      }
+
+      // ── Movimientos (modelo viejo) ─────────────────────────────────────────
+      if (movs.length > 0) {
+        if (viajesAux.length > 0) {
+          html += `<hr style="margin:1rem 0;border-color:var(--gray-200)">`;
+        }
+        html += `<div class="aux-tl-date-label" style="margin-bottom:.75rem">📦 Historial anterior</div>`;
+
+        const groups = {};
+        movs.forEach(m => {
+          const d = new Date(m.fecha);
+          const key = d.toISOString().split('T')[0];
+          const hoy = new Date(); hoy.setHours(0,0,0,0);
+          const ayer = new Date(hoy); ayer.setDate(hoy.getDate()-1);
+          const mDate = new Date(d); mDate.setHours(0,0,0,0);
+          let label = mDate.getTime() === hoy.getTime() ? 'Hoy'
+            : mDate.getTime() === ayer.getTime() ? 'Ayer'
+            : d.toLocaleDateString('es-CO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+          if (!groups[key]) groups[key] = { label, items: [] };
+          groups[key].items.push(m);
+        });
+
+        Object.keys(groups).sort((a,b) => b.localeCompare(a)).forEach(key => {
+          const g = groups[key];
+          html += `<div class="aux-tl-date-group"><div class="aux-tl-date-label">${g.label}</div>`;
+          g.items.forEach(m => {
+            const anulado  = m.anulado;
+            const esEspejo = m.notas?.startsWith('Anulación de');
+            const iconClass = anulado || esEspejo ? 'tipo-anulado' : `tipo-${m.tipo}`;
+            const hora = new Date(m.fecha).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+            const aB = anulado  ? '<span class="aux-tl-anulado-badge">Anulado</span>' : '';
+            const eB = esEspejo ? '<span class="aux-tl-anulado-badge" style="background:var(--gray-100);color:var(--gray-500)">Contrapartida</span>' : '';
+            html += `<div class="aux-tl-item">
+              <div class="aux-tl-icon ${iconClass}">${TIPO_ICONS[m.tipo]||'↔️'}</div>
+              <div class="aux-tl-content">
+                <div class="aux-tl-top">
+                  <span class="aux-tl-tipo" style="${anulado?'text-decoration:line-through;opacity:.6':''}">${TIPO_LABELS[m.tipo]||m.tipo} ${aB}${eB}</span>
+                  <span class="aux-tl-cant">${m.cantidad} 🧺</span>
+                </div>
+                <div class="aux-tl-ref">${escapeHtml(m.referencia_numero)}</div>
+                <div class="aux-tl-meta">
+                  <span>🕐 ${hora}</span>
+                  ${m.cliente_nombre ? `<span>👤 ${escapeHtml(m.cliente_nombre)}</span>` : ''}
+                  ${m.firma_url ? '<span>🖊️ Firmado</span>' : ''}
+                </div>
+                ${m.notas ? `<div class="aux-tl-notas">💬 ${escapeHtml(m.notas)}</div>` : ''}
+              </div>
+            </div>`;
+          });
+          html += '</div>';
+        });
+      }
+
       html += '</div>';
       bodyEl.innerHTML = html;
     } catch (err) {

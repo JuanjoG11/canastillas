@@ -159,8 +159,7 @@ const APP = (() => {
     }
     UI.setLoading(false);
 
-    console.log('[APP] conductores cargados:', conductores.length, conductores);
-    console.log('[APP] auxiliares cargados:', auxiliares.length);
+    // loaded: conductores=${conductores.length}, auxiliares=${auxiliares.length}
 
     if (conductores.length === 0) {
       // Mostrar aviso visible en pantalla, no solo toast
