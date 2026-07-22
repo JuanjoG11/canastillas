@@ -143,10 +143,23 @@ const APP = (() => {
 
   // ─── Formulario nuevo despacho ─────────────────────────────────────────────
   async function abrirFormularioDespacho() {
-    const [conductores, auxiliares] = await Promise.all([
-      DB_VIAJES.getConductores(true),
-      DB.getAuxiliares(true),
-    ]);
+    UI.setLoading(true);
+    let conductores = [], auxiliares = [];
+    try {
+      [conductores, auxiliares] = await Promise.all([
+        DB_VIAJES.getConductores(false),   // todos, sin filtrar por activo
+        DB.getAuxiliares(false),
+      ]);
+    } catch (err) {
+      UI.setLoading(false);
+      UI.toast('Error al cargar conductores/auxiliares: ' + err.message, 'error');
+      return;
+    }
+    UI.setLoading(false);
+
+    if (conductores.length === 0) {
+      UI.toast('No hay conductores registrados. Ejecuta insert_conductores.sql en Supabase primero.', 'error');
+    }
 
     const condOpts = conductores.map(c =>
       `<option value="${c.id}">${UI.escapeHtml(c.nombre)}</option>`
@@ -157,21 +170,19 @@ const APP = (() => {
 
     openDrawer('🚛 Nuevo Despacho', `
       <form id="form-despacho" novalidate>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Conductor *</label>
-            <select id="desp-conductor" class="form-control" required>
-              <option value="">-- Seleccione --</option>
-              ${condOpts}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Auxiliar *</label>
-            <select id="desp-auxiliar" class="form-control" required>
-              <option value="">-- Seleccione --</option>
-              ${auxOpts}
-            </select>
-          </div>
+        <div class="form-group">
+          <label>Conductor *</label>
+          <input id="desp-conductor-txt" class="form-control" type="text"
+            placeholder="🔍 Buscar conductor por nombre..." autocomplete="off" />
+          <input type="hidden" id="desp-conductor" />
+          <div id="desp-conductor-list" class="inline-search-list hidden"></div>
+        </div>
+        <div class="form-group">
+          <label>Auxiliar *</label>
+          <input id="desp-auxiliar-txt" class="form-control" type="text"
+            placeholder="🔍 Buscar auxiliar por nombre o cédula..." autocomplete="off" />
+          <input type="hidden" id="desp-auxiliar" />
+          <div id="desp-auxiliar-list" class="inline-search-list hidden"></div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -187,7 +198,6 @@ const APP = (() => {
           <label># Factura</label>
           <input id="desp-factura" class="form-control" type="text" placeholder="Número de factura" />
         </div>
-
         <hr class="divider" />
         <div class="form-section-label">📤 Material despachado</div>
         <div class="form-row-4">
@@ -208,15 +218,21 @@ const APP = (() => {
             <input id="desp-estibas"  class="form-control" type="number" min="0" value="0" />
           </div>
         </div>
-
         <div class="form-group">
           <label>Observaciones</label>
           <textarea id="desp-obs" class="form-control" placeholder="Notas opcionales..."></textarea>
         </div>
-
         <button type="submit" class="btn btn-primary btn-block btn-lg">✓ Registrar Despacho</button>
       </form>
     `);
+
+    // ── Autocomplete conductor ──────────────────────────────────────────────
+    _bindInlineSearch('desp-conductor-txt', 'desp-conductor-list', 'desp-conductor',
+      conductores, c => c.nombre, c => c.cedula ? `CC: ${c.cedula}` : '');
+
+    // ── Autocomplete auxiliar ───────────────────────────────────────────────
+    _bindInlineSearch('desp-auxiliar-txt', 'desp-auxiliar-list', 'desp-auxiliar',
+      auxiliares, a => a.nombre, a => `CC: ${a.cedula}`);
 
     document.getElementById('form-despacho').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -520,6 +536,55 @@ const APP = (() => {
         } catch (err) { UI.toast(err.message, 'error'); }
         UI.setLoading(false);
       },
+    });
+  }
+
+  // ─── Helper: búsqueda inline para selects en drawer ──────────────────────
+  function _bindInlineSearch(inputId, listId, hiddenId, items, labelFn, sublabelFn) {
+    const input  = document.getElementById(inputId);
+    const list   = document.getElementById(listId);
+    const hidden = document.getElementById(hiddenId);
+    if (!input || !list || !hidden) return;
+
+    const renderList = (q = '') => {
+      const filtered = q
+        ? items.filter(i => labelFn(i).toLowerCase().includes(q.toLowerCase()) ||
+                            (sublabelFn(i) || '').toLowerCase().includes(q.toLowerCase()))
+        : items;
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="isl-empty">Sin resultados</div>';
+      } else {
+        list.innerHTML = filtered.slice(0, 30).map(i =>
+          `<div class="isl-item" data-id="${i.id}">
+            <span class="isl-label">${UI.escapeHtml(labelFn(i))}</span>
+            <span class="isl-sub">${UI.escapeHtml(sublabelFn(i) || '')}</span>
+          </div>`
+        ).join('');
+        list.querySelectorAll('.isl-item').forEach(el => {
+          el.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const id  = el.dataset.id;
+            const lbl = el.querySelector('.isl-label').textContent;
+            hidden.value = id;
+            input.value  = lbl;
+            list.classList.add('hidden');
+          });
+        });
+      }
+      list.classList.remove('hidden');
+    };
+
+    input.addEventListener('focus', () => renderList(input.value));
+    input.addEventListener('input', () => {
+      hidden.value = '';
+      renderList(input.value);
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(() => list.classList.add('hidden'), 150);
+    });
+    // Si el valor escrito no corresponde a ningún item, limpiar el hidden
+    input.addEventListener('blur', () => {
+      if (!hidden.value) input.value = '';
     });
   }
 

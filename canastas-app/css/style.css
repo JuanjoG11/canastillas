@@ -1188,3 +1188,31 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 
 .viaje-row td { border-color: var(--gray-100); }
 .viaje-row:hover td { background: #F5F9FF; }
+
+/* ─── Inline search list (autocomplete en drawer) ──────────────────── */
+.inline-search-list {
+  position: relative;
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: var(--shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 2px;
+  z-index: 10;
+}
+.isl-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .5rem .875rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--gray-100);
+  transition: background var(--transition);
+}
+.isl-item:last-child { border-bottom: none; }
+.isl-item:hover, .isl-item:focus { background: var(--primary-light); }
+.isl-label { font-weight: 600; font-size: .875rem; color: var(--gray-900); }
+.isl-sub   { font-size: .75rem; color: var(--gray-500);
+  background: var(--gray-100); border-radius: 4px; padding: 1px 6px; }
+.isl-empty { padding: .75rem; text-align: center; color: var(--gray-500); font-size: .875rem; }
