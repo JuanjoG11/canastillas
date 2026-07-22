@@ -228,7 +228,11 @@ const UI_VIAJES = (() => {
             <td class="td-num ${difP < 0 ? 'td-num-neg' : ''}">${difP}</td>
             <td class="td-num ${difE < 0 ? 'td-num-neg' : ''}">${difE}</td>
             <td>${estadoBadge}</td>
-            <td class="td-acc"><button class="btn-accion btn-ver" onclick="APP.verDetalleViaje('${v.id}')" title="Ver detalle">👁️</button></td>
+            <td class="td-acc">
+              <button class="btn-accion btn-ver" onclick="APP.verDetalleViaje('${v.id}')" title="Ver detalle">👁️</button>
+              ${v.firma_despacho_url ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_despacho_url}','Firma Despacho')" title="Ver firma despacho">📤🖊️</button>` : ''}
+              ${v.firma_retorno_url  ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_retorno_url}','Firma Retorno')" title="Ver firma retorno">📥🖊️</button>` : ''}
+            </td>
           </tr>`;
         }).join('');
       }

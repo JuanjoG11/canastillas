@@ -144,7 +144,6 @@ const APP = (() => {
   // ─── Formulario nuevo despacho ─────────────────────────────────────────────
   async function abrirFormularioDespacho() {
     UI.setLoading(true);
-    // Forzar recarga desde Supabase, sin cache
     DB_VIAJES.invalidateCache();
     DB.invalidateCache();
     let conductores = [], auxiliares = [];
@@ -160,16 +159,34 @@ const APP = (() => {
     }
     UI.setLoading(false);
 
-    if (conductores.length === 0) {
-      UI.toast('No hay conductores registrados. Ejecuta insert_conductores.sql en Supabase primero.', 'error');
-    }
+    console.log('[APP] conductores cargados:', conductores.length, conductores);
+    console.log('[APP] auxiliares cargados:', auxiliares.length);
 
-    const condOpts = conductores.map(c =>
-      `<option value="${c.id}">${UI.escapeHtml(c.nombre)}</option>`
-    ).join('');
-    const auxOpts = auxiliares.map(a =>
-      `<option value="${a.id}">${UI.escapeHtml(a.nombre)}</option>`
-    ).join('');
+    if (conductores.length === 0) {
+      // Mostrar aviso visible en pantalla, no solo toast
+      openDrawer('🚛 Nuevo Despacho', `
+        <div class="field-info" style="border-left-color:var(--danger);background:var(--danger-light);color:#991B1B;margin-bottom:1rem">
+          ⚠️ <strong>No hay conductores en la base de datos.</strong><br>
+          Ve a Supabase → SQL Editor y ejecuta el archivo <code>insert_conductores.sql</code>.<br><br>
+          O usa el botón de abajo para crear un conductor ahora mismo.
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-crear-primer-conductor">+ Agregar conductor manualmente</button>
+      `);
+      document.getElementById('btn-crear-primer-conductor')?.addEventListener('click', async () => {
+        const nombre = prompt('Nombre del conductor:');
+        if (!nombre?.trim()) return;
+        const cedula = prompt('Cédula:');
+        if (cedula === null) return;
+        UI.setLoading(true);
+        try {
+          await DB_VIAJES.addConductor(nombre.trim().toUpperCase(), cedula.trim() || Date.now().toString());
+          UI.toast('Conductor creado. Abre el formulario de nuevo.', 'success');
+          closeDrawer();
+        } catch (err) { UI.toast(err.message, 'error'); }
+        UI.setLoading(false);
+      });
+      return;
+    }
 
     openDrawer('🚛 Nuevo Despacho', `
       <form id="form-despacho" novalidate>
@@ -299,24 +316,35 @@ const APP = (() => {
       UI.setLoading(true);
       try {
         const viaje = await DB_VIAJES.registrarViaje({
-          conductor_id,
-          auxiliar_id,
-          placa,
-          remolque:       document.getElementById('desp-remolque').value.trim(),
-          numero_factura: document.getElementById('desp-factura').value.trim(),
-          desp_grandes:   document.getElementById('desp-grandes').value,
-          desp_medianas:  document.getElementById('desp-medianas').value,
-          desp_pequenas:  document.getElementById('desp-pequenas').value,
-          desp_estibas:   document.getElementById('desp-estibas').value,
-          observaciones:  document.getElementById('desp-obs').value,
+          conductor_id, auxiliar_id, placa,
+          remolque:          document.getElementById('desp-remolque').value.trim(),
+          numero_factura:    document.getElementById('desp-factura').value.trim(),
+          desp_grandes:      document.getElementById('desp-grandes').value,
+          desp_medianas:     document.getElementById('desp-medianas').value,
+          desp_pequenas:     document.getElementById('desp-pequenas').value,
+          desp_estibas:      document.getElementById('desp-estibas').value,
+          observaciones:     document.getElementById('desp-obs').value,
           admin_registrador: AUTH.getCurrentUser(),
         });
         DB_VIAJES.invalidateCache();
         closeDrawer();
-        UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado`, 'success');
+        UI.setLoading(false);
+
+        // ── Solicitar firma del conductor ──────────────────────────────────
+        const condNombre = conductores.find(c => c.id === conductor_id)?.nombre || 'Conductor';
+        const auxNombre  = auxiliares.find(a => a.id === auxiliar_id)?.nombre   || 'Auxiliar';
+        const firmaUrl   = await FIRMA.solicitarFirmaViaje({
+          tipo: 'despacho', numeroViaje: viaje.numero_viaje,
+          conductorNombre: condNombre, auxiliarNombre: auxNombre,
+        });
+        if (firmaUrl) {
+          await DB_VIAJES.guardarFirmaDespacho(viaje.id, firmaUrl);
+          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado y firmado`, 'success');
+        } else {
+          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado sin firma`, 'success');
+        }
         await navigateTo('viajes');
-      } catch (err) { UI.toast(err.message, 'error'); }
-      UI.setLoading(false);
+      } catch (err) { UI.toast(err.message, 'error'); UI.setLoading(false); }
     });
   }
 
@@ -392,7 +420,7 @@ const APP = (() => {
       e.preventDefault();
       UI.setLoading(true);
       try {
-        await DB_VIAJES.registrarRetorno(
+        const viajeActualizado = await DB_VIAJES.registrarRetorno(
           viajeId,
           document.getElementById('ret-grandes').value,
           document.getElementById('ret-medianas').value,
@@ -401,10 +429,23 @@ const APP = (() => {
         );
         DB_VIAJES.invalidateCache();
         closeDrawer();
-        UI.toast('✓ Retorno registrado', 'success');
+        UI.setLoading(false);
+
+        // ── Solicitar firma del conductor en el retorno ───────────────────
+        const firmaUrl = await FIRMA.solicitarFirmaViaje({
+          tipo:            'retorno',
+          numeroViaje:     viajeActualizado.numero_viaje,
+          conductorNombre: condNombre,
+          auxiliarNombre:  auxNombre,
+        });
+        if (firmaUrl) {
+          await DB_VIAJES.guardarFirmaRetorno(viajeActualizado.id, firmaUrl);
+          UI.toast('✓ Retorno registrado y firmado', 'success');
+        } else {
+          UI.toast('✓ Retorno registrado sin firma', 'success');
+        }
         await navigateTo('retornos');
-      } catch (err) { UI.toast(err.message, 'error'); }
-      UI.setLoading(false);
+      } catch (err) { UI.toast(err.message, 'error'); UI.setLoading(false); }
     });
   }
 
@@ -451,6 +492,16 @@ const APP = (() => {
         ${retBlock}
         ${viaje.observaciones ? `<div class="detalle-row"><span>Obs:</span><span>${UI.escapeHtml(viaje.observaciones)}</span></div>` : ''}
         <div class="detalle-row"><span>Estado:</span><span><span class="badge ${ESTADOS_BADGE_MAP[viaje.estado] || 'badge-gray'}">${ESTADOS_LABEL_MAP[viaje.estado] || viaje.estado}</span></span></div>
+        ${viaje.firma_despacho_url ? `
+        <div class="detalle-row">
+          <span>Firma despacho:</span>
+          <span><button class="btn btn-sm btn-secondary" onclick="APP.verFirmaViaje('${viaje.firma_despacho_url}','Firma Despacho')">🖊️ Ver firma</button></span>
+        </div>` : ''}
+        ${viaje.firma_retorno_url ? `
+        <div class="detalle-row">
+          <span>Firma retorno:</span>
+          <span><button class="btn btn-sm btn-secondary" onclick="APP.verFirmaViaje('${viaje.firma_retorno_url}','Firma Retorno')">🖊️ Ver firma</button></span>
+        </div>` : ''}
       </div>
       <div style="display:flex;gap:.5rem;margin-top:1.25rem;flex-wrap:wrap">
         ${retornarBtn}
@@ -461,6 +512,24 @@ const APP = (() => {
 
   const ESTADOS_BADGE_MAP = { abierto: 'badge-orange', cerrado: 'badge-green', anulado: 'badge-gray' };
   const ESTADOS_LABEL_MAP = { abierto: 'Pendiente', cerrado: 'Cerrado', anulado: 'Anulado' };
+
+  // ─── Ver firma de viaje ─────────────────────────────────────────────────────
+  function verFirmaViaje(url, titulo) {
+    UI.showModal({
+      title: `🖊️ ${titulo}`,
+      body: `<div style="text-align:center">
+        <img src="${url}" alt="${titulo}"
+          style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:8px;" />
+      </div>`,
+      confirmLabel: 'Cerrar',
+      cancelLabel: '',
+      onConfirm: () => {},
+    });
+    setTimeout(() => {
+      const cancelBtn = document.getElementById('modal-cancel');
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    }, 0);
+  }
 
   // ─── Anular viaje ──────────────────────────────────────────────────────────
   function confirmarAnularViaje(viajeId, numero) {
@@ -640,7 +709,7 @@ const APP = (() => {
   return {
     init, navigateTo, closeDrawer,
     abrirFormularioDespacho, abrirFormularioRetorno,
-    verDetalleViaje, confirmarAnularViaje,
+    verDetalleViaje, confirmarAnularViaje, verFirmaViaje,
     toggleConductor, toggleAuxiliar, verHistorialAuxiliar,
   };
 })();

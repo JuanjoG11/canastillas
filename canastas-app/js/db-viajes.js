@@ -41,8 +41,17 @@ const DB_VIAJES = (() => {
     if (_conductoresCache && _conductoresCache.length > 0) {
       return soloActivos ? _conductoresCache.filter(c => c.activo) : _conductoresCache;
     }
-    const data = await GET('/conductores?order=nombre.asc');
+    console.log('[DB_VIAJES] Fetching conductores from Supabase...');
+    let data = null;
+    try {
+      data = await GET('/conductores?order=nombre.asc');
+      console.log('[DB_VIAJES] conductores result:', data);
+    } catch (err) {
+      console.error('[DB_VIAJES] Error fetching conductores:', err);
+      throw err;
+    }
     _conductoresCache = data || [];
+    console.log('[DB_VIAJES] conductores cached:', _conductoresCache.length, 'records');
     return soloActivos ? _conductoresCache.filter(c => c.activo) : _conductoresCache;
   }
 
@@ -190,6 +199,14 @@ const DB_VIAJES = (() => {
     return viaje;
   }
 
+  async function guardarFirmaDespacho(viajeId, firmaUrl) {
+    await PATCH(`/viajes?id=eq.${viajeId}`, { firma_despacho_url: firmaUrl });
+  }
+
+  async function guardarFirmaRetorno(viajeId, firmaUrl) {
+    await PATCH(`/viajes?id=eq.${viajeId}`, { firma_retorno_url: firmaUrl });
+  }
+
   // ─── CSV Export ────────────────────────────────────────────────────────────
   async function exportViajesCSV() {
     const viajes = await getViajes(1000);
@@ -283,6 +300,7 @@ const DB_VIAJES = (() => {
     getInventarioInicial, setInventarioInicial,
     getViajes, getViajesAbiertos, getViajeById,
     registrarViaje, registrarRetorno, anularViaje,
+    guardarFirmaDespacho, guardarFirmaRetorno,
     exportViajesCSV, calcularDiferenciaAcumulada,
     invalidateCache,
   };

@@ -1216,3 +1216,32 @@ hr.divider { border: none; border-top: 1.5px solid var(--gray-200); margin: 1.25
 .isl-sub   { font-size: .75rem; color: var(--gray-500);
   background: var(--gray-100); border-radius: 4px; padding: 1px 6px; }
 .isl-empty { padding: .75rem; text-align: center; color: var(--gray-500); font-size: .875rem; }
+
+/* ─── Botón firma en tabla viajes ─────────────────────────────── */
+.btn-firma-tbl {
+  background: #F0FDF4;
+  color: #15803D;
+  font-size: .7rem;
+  width: auto !important;
+  padding: 0 4px;
+  margin-left: 2px;
+}
+.btn-firma-tbl:hover { background: #DCFCE7; }
+
+/* ─── Botón omitir en pad de firma ────────────────────────────── */
+.firma-btn-omitir {
+  background: rgba(0,0,0,.12);
+  border: none;
+  color: inherit;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: .875rem; margin-left: auto;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.firma-btn-omitir:hover { background: rgba(0,0,0,.22); }
+
+/* ─── Sublabel en pad de firma ────────────────────────────────── */
+.firma-nombre-bloque { margin-bottom: .25rem; }
+.firma-sublabel { font-size: .8rem; opacity: .75; margin-top: .1rem; }
