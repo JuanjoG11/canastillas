@@ -1,6 +1,6 @@
 /**
- * ui-viajes.js - UI del módulo de viajes (Excel-like)
- * Control de Canastas PWA 2.0
+ * ui-viajes.js — Renderizado módulo de viajes
+ * Control de Canastas PWA v3
  */
 
 const UI_VIAJES = (() => {
@@ -10,130 +10,207 @@ const UI_VIAJES = (() => {
     cerrado: 'badge-green',
     anulado: 'badge-gray',
   };
-
   const ESTADOS_LABEL = {
     abierto: 'Pendiente',
     cerrado: 'Cerrado',
     anulado: 'Anulado',
   };
 
-  // ─── Dashboard ────────────────────────────────────────────────────────────
+  // ─── Dashboard ─────────────────────────────────────────────────────────────
   async function renderDashboard() {
     UI.setLoading(true);
     try {
       const [viajes, diferencia] = await Promise.all([
-        DB_VIAJES.getViajes(100),
+        DB_VIAJES.getViajes(200),
         DB_VIAJES.calcularDiferenciaAcumulada(),
       ]);
 
-      // KPI cards por tipo
-      const kpiHtml = `
-        <div class="kpi-card kpi-grandes">
-          <div class="kpi-label">Grandes</div>
-          <div class="kpi-value">${diferencia.diferencia.grandes}</div>
-          <div class="kpi-sub">diferencia</div>
-        </div>
-        <div class="kpi-card kpi-medianas">
-          <div class="kpi-label">Medianas</div>
-          <div class="kpi-value">${diferencia.diferencia.medianas}</div>
-          <div class="kpi-sub">diferencia</div>
-        </div>
-        <div class="kpi-card kpi-pequenas">
-          <div class="kpi-label">Pequeñas</div>
-          <div class="kpi-value">${diferencia.diferencia.pequenas}</div>
-          <div class="kpi-sub">diferencia</div>
-        </div>
-        <div class="kpi-card kpi-estibas">
-          <div class="kpi-label">Estibas</div>
-          <div class="kpi-value">${diferencia.diferencia.estibas}</div>
-          <div class="kpi-sub">diferencia</div>
-        </div>`;
-      document.getElementById('kpi-row').innerHTML = kpiHtml;
+      // ── KPI cards (diferencia acumulada) ────────────────────────────────
+      const tipos = [
+        { key: 'grandes',  label: 'Grandes',  icon: '📦' },
+        { key: 'pequenas', label: 'Pequeñas', icon: '📦' },
+        { key: 'estibas',  label: 'Estibas',  icon: '🪵' },
+      ];
+      const colors = ['#0F4C81', '#0E9E5B', '#D08700', '#6B7280'];
 
-      // Viajes abiertos (sin retorno) con semáforo
+      document.getElementById('kpi-row').innerHTML = tipos.map((t, i) => {
+        const val = diferencia.diferencia[t.key];
+        const cls = val < 0 ? 'value-danger' : val > 0 ? 'value-ok' : 'value-ok';
+        return `<div class="metric-card" style="--metric-color:${colors[i]}">
+          <div class="m-icon">${t.icon}</div>
+          <div class="m-label">${t.label}</div>
+          <div class="m-value ${cls}">${val > 0 ? '+' : ''}${val}</div>
+          <div class="m-sub">diferencia acumulada</div>
+        </div>`;
+      }).join('');
+
+      // ── Panel alertas auxiliares ─────────────────────────────────────────
+      await _renderAlertasAuxiliares(viajes);
+
+      // ── Viajes sin retorno ────────────────────────────────────────────────
       const abiertos = viajes.filter(v => v.estado === 'abierto');
       document.getElementById('dash-abiertos-count').textContent = abiertos.length;
       const dashAbiertosEl = document.getElementById('dash-viajes-abiertos');
       if (abiertos.length === 0) {
-        dashAbiertosEl.innerHTML = '<p class="text-muted small">✅ Sin viajes pendientes</p>';
-      } else {
-        dashAbiertosEl.innerHTML = abiertos.map(v => {
-          const dias = Math.floor((Date.now() - new Date(v.fecha)) / 86400000);
-          const sem  = dias === 0 ? 'green' : dias <= 2 ? 'yellow' : 'red';
-          const txt  = dias === 0 ? 'Hoy' : dias === 1 ? 'Hace 1 día' : `Hace ${dias} días`;
-          return `<div class="viaje-abierto-row">
-            <div style="display:flex;align-items:center;gap:.5rem">
-              <span class="semaforo semaforo-${sem}" title="${txt}"></span>
-              <div>
-                <strong>${UI.escapeHtml(v.placa)}</strong> · <span class="text-muted" style="font-size:.8rem">${v.numero_viaje}</span>
-              </div>
-            </div>
-            <div class="text-muted small" style="white-space:nowrap">${txt}</div>
-          </div>`;
-        }).join('');
-      }
-
-      // Diferencia acumulada
-      const dashDifEl = document.getElementById('dash-diferencia');
-      dashDifEl.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem">
-          <div class="dif-item">
-            <span class="dif-label">Grandes:</span>
-            <span class="dif-val ${diferencia.diferencia.grandes < 0 ? 'neg' : ''}">${diferencia.diferencia.grandes}</span>
-          </div>
-          <div class="dif-item">
-            <span class="dif-label">Medianas:</span>
-            <span class="dif-val ${diferencia.diferencia.medianas < 0 ? 'neg' : ''}">${diferencia.diferencia.medianas}</span>
-          </div>
-          <div class="dif-item">
-            <span class="dif-label">Pequeñas:</span>
-            <span class="dif-val ${diferencia.diferencia.pequenas < 0 ? 'neg' : ''}">${diferencia.diferencia.pequenas}</span>
-          </div>
-          <div class="dif-item">
-            <span class="dif-label">Estibas:</span>
-            <span class="dif-val ${diferencia.diferencia.estibas < 0 ? 'neg' : ''}">${diferencia.diferencia.estibas}</span>
-          </div>
-        </div>`;
-
-      // Últimos 8 viajes
-      const ultimos = viajes.slice(0, 8);
-      const dashUltimosEl = document.getElementById('dash-ultimos-viajes');
-      if (ultimos.length === 0) {
-        dashUltimosEl.innerHTML = '<p class="text-muted small">No hay viajes registrados</p>';
+        dashAbiertosEl.innerHTML = '<div class="alert-empty">✅ Sin viajes pendientes</div>';
       } else {
         const [conductores, auxiliares] = await Promise.all([
           DB_VIAJES.getConductores(),
           DB.getAuxiliares(),
         ]);
-        const condMap = {};
-        conductores.forEach(c => { condMap[c.id] = c.nombre; });
-        const auxMap = {};
-        auxiliares.forEach(a => { auxMap[a.id] = a.nombre; });
+        const condMap = {}; conductores.forEach(c => { condMap[c.id] = c.nombre; });
+        const auxMap  = {}; auxiliares.forEach(a => { auxMap[a.id]  = a.nombre; });
 
-        dashUltimosEl.innerHTML = ultimos.map(v => {
-          const estadoBadge = `<span class="badge ${ESTADOS_BADGE[v.estado] || 'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span>`;
-          return `<div class="viaje-dash-row">
-            <div class="viaje-dash-left">
-              <div><strong>${UI.escapeHtml(v.numero_viaje)}</strong> · ${UI.escapeHtml(v.placa)}</div>
-              <div class="text-muted small">${condMap[v.conductor_id] || ''} · ${auxMap[v.auxiliar_id] || ''}</div>
+        dashAbiertosEl.innerHTML = abiertos.map(v => {
+          const dias = Math.floor((Date.now() - new Date(v.fecha)) / 86400000);
+          const sem  = dias === 0 ? 'green' : dias <= 2 ? 'yellow' : 'red';
+          const txt  = dias === 0 ? 'Hoy' : dias === 1 ? 'Hace 1 día' : `Hace ${dias} días`;
+          return `<div class="viaje-abierto-row" style="cursor:pointer" onclick="APP.verDetalleViaje('${v.id}')">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span class="semaforo semaforo-${sem}" title="${txt}"></span>
+              <div>
+                <strong style="font-size:.875rem">${UI.escapeHtml(v.placa)}</strong>
+                <span class="text-muted text-xs"> · ${v.numero_viaje}</span>
+              </div>
             </div>
-            <div>${estadoBadge}</div>
+            <div style="text-align:right">
+              <div class="text-xs text-muted">${txt}</div>
+              <div class="text-xs text-muted">${abrevNombre(condMap[v.conductor_id] || '')}</div>
+            </div>
           </div>`;
         }).join('');
       }
-      // Gráfico semanal: últimas 6 semanas
+
+      // ── Diferencia acumulada (banner 4 boxes) ────────────────────────────
+      const difEl = document.getElementById('dash-diferencia');
+      difEl.innerHTML = tipos.map(t => {
+        const val = diferencia.diferencia[t.key];
+        const cls = val > 0 ? 'neg' : val < 0 ? 'pos' : '';
+        return `<div class="dif-box">
+          <div class="dif-box-label">${t.label}</div>
+          <div class="dif-box-value ${cls}">${val > 0 ? '+' : ''}${val}</div>
+        </div>`;
+      }).join('');
+
+      // ── Últimos despachos ─────────────────────────────────────────────────
+      const ultimos = viajes.slice(0, 8);
+      const dashUltimosEl = document.getElementById('dash-ultimos-viajes');
+      if (ultimos.length === 0) {
+        dashUltimosEl.innerHTML = '<p class="text-muted text-sm">No hay viajes registrados</p>';
+      } else {
+        const [conductores2, auxiliares2] = await Promise.all([
+          DB_VIAJES.getConductores(),
+          DB.getAuxiliares(),
+        ]);
+        const cMap = {}; conductores2.forEach(c => { cMap[c.id] = c.nombre; });
+        const aMap = {}; auxiliares2.forEach(a => { aMap[a.id] = a.nombre; });
+
+        dashUltimosEl.innerHTML = ultimos.map(v => {
+          return `<div class="viaje-dash-row">
+            <div>
+              <div style="font-size:.875rem;font-weight:700">${UI.escapeHtml(v.numero_viaje)} · ${UI.escapeHtml(v.placa)}</div>
+              <div class="text-muted text-xs">${abrevNombre(cMap[v.conductor_id] || '')} · ${abrevNombre(aMap[v.auxiliar_id] || '')} · ${formatFecha(v.fecha)}</div>
+            </div>
+            <span class="badge ${ESTADOS_BADGE[v.estado] || 'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span>
+          </div>`;
+        }).join('');
+      }
+
+      // ── Gráfico semanal ───────────────────────────────────────────────────
       _renderGraficoSemanal(viajes);
 
-    } catch (err) { UI.toast('Error al cargar dashboard: ' + err.message, 'error'); }
+    } catch (err) { UI.toast('Error dashboard: ' + err.message, 'error'); }
     UI.setLoading(false);
   }
 
-  // ─── Gráfico semanal (SVG puro) ───────────────────────────────────────────
+  // ─── Alertas auxiliares (panel del dashboard) ──────────────────────────────
+  async function _renderAlertasAuxiliares(viajes) {
+    try {
+      const auxiliares = await DB.getAuxiliares(true);
+      if (!auxiliares.length) {
+        document.getElementById('dash-alertas-aux').innerHTML =
+          '<div class="alert-empty">Sin auxiliares activos</div>';
+        document.getElementById('dash-alertas-count').textContent = '0';
+        document.getElementById('dash-alertas-count').className = 'alert-badge zero';
+        return;
+      }
+
+      // Para cada auxiliar, calcular diferencia total de sus viajes cerrados
+      const alertas = auxiliares.map(aux => {
+        const viajesAux = viajes.filter(v => v.auxiliar_id === aux.id);
+        const pendientes = viajesAux.filter(v => v.estado === 'abierto');
+        const cerrados   = viajesAux.filter(v => v.estado === 'cerrado');
+
+        let difTotal = 0;
+        cerrados.forEach(v => {
+          difTotal += ((v.ret_grandes  || 0) - v.desp_grandes);
+          difTotal += ((v.ret_medianas || 0) - (v.desp_medianas || 0));
+          difTotal += ((v.ret_pequenas || 0) - v.desp_pequenas);
+          difTotal += ((v.ret_estibas  || 0) - v.desp_estibas);
+        });
+
+        // Semáforo: rojo si dif < -20 o tiene pendientes > 2d, amarillo si dif < -5 o pendiente, verde ok
+        const maxDias = pendientes.length > 0
+          ? Math.max(...pendientes.map(v => Math.floor((Date.now() - new Date(v.fecha)) / 86400000)))
+          : 0;
+
+        let nivel = 'ok';
+        if (difTotal < -20 || maxDias > 3) nivel = 'crit';
+        else if (difTotal < -5 || maxDias > 1 || pendientes.length > 0) nivel = 'warn';
+
+        return { aux, difTotal, pendientes: pendientes.length, cerrados: cerrados.length, maxDias, nivel };
+      });
+
+      // Ordenar: críticos primero, luego advertencia, luego ok
+      const orden = { crit: 0, warn: 1, ok: 2 };
+      alertas.sort((a, b) => orden[a.nivel] - orden[b.nivel] || a.difTotal - b.difTotal);
+
+      const conAlerta = alertas.filter(a => a.nivel !== 'ok');
+      const badgeEl = document.getElementById('dash-alertas-count');
+      badgeEl.textContent = conAlerta.length;
+      badgeEl.className = conAlerta.length > 0 ? 'alert-badge' : 'alert-badge zero';
+
+      const container = document.getElementById('dash-alertas-aux');
+      if (alertas.length === 0) {
+        container.innerHTML = '<div class="alert-empty">✅ Sin alertas</div>';
+        return;
+      }
+
+      const dotClass = { crit: 'crit', warn: 'warn', ok: 'ok' };
+      container.innerHTML = alertas.slice(0, 8).map(a => {
+        const safeName = UI.escapeHtml(a.aux.nombre).replace(/'/g, "\\'");
+        const subParts = [];
+        if (a.pendientes > 0) subParts.push(`${a.pendientes} viaje${a.pendientes > 1 ? 's' : ''} pendiente${a.pendientes > 1 ? 's' : ''}`);
+        if (a.maxDias > 0) subParts.push(`max ${a.maxDias}d sin retorno`);
+        if (a.cerrados > 0) subParts.push(`dif acum: ${a.difTotal > 0 ? '+' : ''}${a.difTotal}`);
+
+        const difBadge = a.difTotal > 0
+          ? `<span class="badge badge-orange">${a.difTotal > 0 ? '+' : ''}${a.difTotal}</span>`
+          : a.difTotal < 0
+            ? `<span class="badge badge-red">${a.difTotal}</span>`
+            : `<span class="badge badge-green">✓</span>`;
+
+        return `<div class="alert-item" onclick="APP.verHistorialAuxiliar('${a.aux.id}','${safeName}')">
+          <div class="alert-item-dot ${dotClass[a.nivel]}"></div>
+          <div class="alert-item-body">
+            <div class="alert-item-name">${UI.escapeHtml(a.aux.nombre)}</div>
+            <div class="alert-item-sub">${subParts.join(' · ') || 'Sin actividad'}</div>
+          </div>
+          <div class="alert-item-right">${difBadge}</div>
+        </div>`;
+      }).join('');
+
+    } catch (e) {
+      document.getElementById('dash-alertas-aux').innerHTML =
+        '<div class="alert-empty">Error al cargar alertas</div>';
+    }
+  }
+
+  // ─── Gráfico semanal (SVG puro) ────────────────────────────────────────────
   function _renderGraficoSemanal(viajes) {
     const el = document.getElementById('dash-grafico-semanal');
     if (!el) return;
 
-    // Agrupar por semana (lunes)
     const semanas = {};
     viajes.forEach(v => {
       const d   = new Date(v.fecha + 'T00:00:00');
@@ -147,62 +224,52 @@ const UI_VIAJES = (() => {
     });
 
     const keys = Object.keys(semanas).sort().slice(-8);
-    if (keys.length === 0) { el.innerHTML = '<p class="text-muted small">Sin datos para graficar</p>'; return; }
+    if (keys.length === 0) {
+      el.innerHTML = '<p class="text-muted text-sm">Sin datos para graficar</p>';
+      return;
+    }
 
     const maxVal = Math.max(...keys.flatMap(k => [semanas[k].desp, semanas[k].ret]), 1);
-    const W      = 520;           // ancho total SVG
-    const H      = 140;           // alto área de barras
-    const PAD_L  = 42;            // margen izquierdo (eje Y)
-    const PAD_B  = 28;            // margen inferior (eje X)
-    const PAD_T  = 10;
-    const PAD_R  = 10;
-    const chartW = W - PAD_L - PAD_R;
-    const chartH = H - PAD_T - PAD_B;
-    const grpW   = chartW / keys.length;
-    const barW   = Math.max(6, Math.min(22, grpW * 0.32));
+    const W = 520, H = 150, PL = 44, PB = 30, PT = 8, PR = 10;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const grpW = cW / keys.length;
+    const barW = Math.max(6, Math.min(20, grpW * 0.3));
 
-    // Líneas guía Y
     const yLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
-      const y = PAD_T + chartH * (1 - f);
+      const y = PT + cH * (1 - f);
       const val = Math.round(maxVal * f);
-      return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="#E5E7EB" stroke-width="1"/>
-              <text x="${PAD_L - 4}" y="${y + 4}" text-anchor="end" font-size="9" fill="#9CA3AF">${val}</text>`;
+      return `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#E2E8F0" stroke-width="1"/>
+              <text x="${PL-5}" y="${y+4}" text-anchor="end" font-size="9" fill="#94A3B8">${val}</text>`;
     }).join('');
 
     const bars = keys.map((k, i) => {
       const s  = semanas[k];
-      const cx = PAD_L + grpW * i + grpW / 2;
-      const hD = (s.desp / maxVal) * chartH;
-      const hR = (s.ret  / maxVal) * chartH;
-      const label = k.slice(5); // MM-DD
-      return `
-        <rect x="${cx - barW - 1}" y="${PAD_T + chartH - hD}" width="${barW}" height="${hD}" fill="#2563EB" rx="3" opacity=".88"/>
-        <rect x="${cx + 1}"        y="${PAD_T + chartH - hR}" width="${barW}" height="${hR}" fill="#16A34A" rx="3" opacity=".88"/>
-        <text x="${cx}" y="${H - 4}" text-anchor="middle" font-size="8.5" fill="#6B7280">${label}</text>
-        <title>Semana ${k}: Desp ${s.desp} · Ret ${s.ret}</title>`;
+      const cx = PL + grpW * i + grpW / 2;
+      const hD = (s.desp / maxVal) * cH || 0;
+      const hR = (s.ret  / maxVal) * cH || 0;
+      const label = k.slice(5);
+      return `<g>
+        <rect x="${cx - barW - 1.5}" y="${PT + cH - hD}" width="${barW}" height="${Math.max(hD, 1)}" fill="#0F4C81" rx="3" opacity=".85"/>
+        <rect x="${cx + 1.5}"        y="${PT + cH - hR}" width="${barW}" height="${Math.max(hR, 1)}" fill="#0E9E5B" rx="3" opacity=".85"/>
+        <text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="8.5" fill="#94A3B8">${label}</text>
+        <title>Semana ${k}: Desp ${s.desp} · Ret ${s.ret}</title>
+      </g>`;
     }).join('');
 
     el.innerHTML = `
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:160px;display:block;overflow:visible">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:165px;display:block;overflow:visible">
         ${yLines}
-        <line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T + chartH}" stroke="#D1D5DB" stroke-width="1"/>
+        <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+cH}" stroke="#CBD5E1" stroke-width="1"/>
         ${bars}
       </svg>
-      <div style="display:flex;gap:1.25rem;margin-top:.5rem;font-size:.75rem;color:var(--gray-500);padding-left:${PAD_L}px">
-        <span style="display:flex;align-items:center;gap:.3rem">
-          <span style="display:inline-block;width:12px;height:12px;background:#2563EB;border-radius:3px"></span>Despachado
-        </span>
-        <span style="display:flex;align-items:center;gap:.3rem">
-          <span style="display:inline-block;width:12px;height:12px;background:#16A34A;border-radius:3px"></span>Retornado
-        </span>
+      <div class="chart-legend">
+        <span><span class="legend-dot" style="background:#0F4C81"></span>Despachado</span>
+        <span><span class="legend-dot" style="background:#0E9E5B"></span>Retornado</span>
       </div>`;
   }
 
-  // ─── Viajes tabla ─────────────────────────────────────────────────────────
-  let _viajesFiltros = {};
-
+  // ─── Tabla de viajes ────────────────────────────────────────────────────────
   async function renderViajes(filtros = {}) {
-    _viajesFiltros = filtros;
     UI.setLoading(true);
     try {
       const [viajes, conductores, auxiliares] = await Promise.all([
@@ -211,10 +278,8 @@ const UI_VIAJES = (() => {
         DB.getAuxiliares(),
       ]);
 
-      const condMap = {};
-      conductores.forEach(c => { condMap[c.id] = c.nombre; });
-      const auxMap = {};
-      auxiliares.forEach(a => { auxMap[a.id] = a.nombre; });
+      const condMap = {}; conductores.forEach(c => { condMap[c.id] = c.nombre; });
+      const auxMap  = {}; auxiliares.forEach(a => { auxMap[a.id]  = a.nombre; });
 
       // Filtrar
       let filtered = viajes;
@@ -223,96 +288,74 @@ const UI_VIAJES = (() => {
       if (filtros.estado && filtros.estado !== 'todos') filtered = filtered.filter(v => v.estado === filtros.estado);
       if (filtros.conductor_id) filtered = filtered.filter(v => v.conductor_id === filtros.conductor_id);
 
-      // Calcular totales
-      let totDesp = { grandes: 0, medianas: 0, pequenas: 0, estibas: 0 };
-      let totRet  = { grandes: 0, medianas: 0, pequenas: 0, estibas: 0 };
-      let totDif  = { grandes: 0, medianas: 0, pequenas: 0, estibas: 0 };
-
+      // Totales
+      let totD = { g:0,p:0,e:0 }, totR = { g:0,p:0,e:0 };
       filtered.forEach(v => {
-        totDesp.grandes  += v.desp_grandes || 0;
-        totDesp.medianas += v.desp_medianas || 0;
-        totDesp.pequenas += v.desp_pequenas || 0;
-        totDesp.estibas  += v.desp_estibas || 0;
-
-        if (v.ret_grandes !== null)  totRet.grandes  += v.ret_grandes;
-        if (v.ret_medianas !== null) totRet.medianas += v.ret_medianas;
-        if (v.ret_pequenas !== null) totRet.pequenas += v.ret_pequenas;
-        if (v.ret_estibas !== null)  totRet.estibas  += v.ret_estibas;
+        totD.g += v.desp_grandes  || 0;
+        totD.p += v.desp_pequenas || 0; totD.e += v.desp_estibas  || 0;
+        if (v.ret_grandes  !== null) totR.g += v.ret_grandes;
+        if (v.ret_pequenas !== null) totR.p += v.ret_pequenas;
+        if (v.ret_estibas  !== null) totR.e += v.ret_estibas;
       });
+      const totDif = { g: totR.g-totD.g, p: totR.p-totD.p, e: totR.e-totD.e };
 
-      totDif.grandes  = totDesp.grandes  - totRet.grandes;
-      totDif.medianas = totDesp.medianas - totRet.medianas;
-      totDif.pequenas = totDesp.pequenas - totRet.pequenas;
-      totDif.estibas  = totDesp.estibas  - totRet.estibas;
-
-      // Render totales
       document.getElementById('viajes-totales').innerHTML = `
         <div class="totales-card">
           <div class="totales-label">Total despachado</div>
           <div class="totales-grid">
-            <span><strong>${totDesp.grandes}</strong> G</span>
-            <span><strong>${totDesp.medianas}</strong> M</span>
-            <span><strong>${totDesp.pequenas}</strong> P</span>
-            <span><strong>${totDesp.estibas}</strong> E</span>
+            <span><strong>${totD.g}</strong> G</span>
+            <span><strong>${totD.p}</strong> P</span>
+            <span><strong>${totD.e}</strong> E</span>
           </div>
         </div>
         <div class="totales-card">
           <div class="totales-label">Total retornado</div>
           <div class="totales-grid">
-            <span><strong>${totRet.grandes}</strong> G</span>
-            <span><strong>${totRet.medianas}</strong> M</span>
-            <span><strong>${totRet.pequenas}</strong> P</span>
-            <span><strong>${totRet.estibas}</strong> E</span>
+            <span><strong>${totR.g}</strong> G</span>
+            <span><strong>${totR.p}</strong> P</span>
+            <span><strong>${totR.e}</strong> E</span>
           </div>
         </div>
         <div class="totales-card totales-dif">
           <div class="totales-label">Diferencia</div>
           <div class="totales-grid">
-            <span class="${totDif.grandes < 0 ? 'neg' : ''}"><strong>${totDif.grandes}</strong> G</span>
-            <span class="${totDif.medianas < 0 ? 'neg' : ''}"><strong>${totDif.medianas}</strong> M</span>
-            <span class="${totDif.pequenas < 0 ? 'neg' : ''}"><strong>${totDif.pequenas}</strong> P</span>
-            <span class="${totDif.estibas < 0 ? 'neg' : ''}"><strong>${totDif.estibas}</strong> E</span>
+            <span class="${totDif.g < 0 ? 'neg' : totDif.g > 0 ? 'pos' : ''}"><strong>${totDif.g > 0 ? '+' : ''}${totDif.g}</strong> G</span>
+            <span class="${totDif.p < 0 ? 'neg' : totDif.p > 0 ? 'pos' : ''}"><strong>${totDif.p > 0 ? '+' : ''}${totDif.p}</strong> P</span>
+            <span class="${totDif.e < 0 ? 'neg' : totDif.e > 0 ? 'pos' : ''}"><strong>${totDif.e > 0 ? '+' : ''}${totDif.e}</strong> E</span>
           </div>
         </div>`;
 
-      // Render tabla
+      // Tabla
       const tbody = document.getElementById('viajes-tbody');
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="21" class="text-center text-muted">No hay viajes para mostrar</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17" class="text-center text-muted" style="padding:2rem">No hay viajes para mostrar</td></tr>';
       } else {
         tbody.innerHTML = filtered.map(v => {
-          const difG = (v.ret_grandes !== null) ? (v.desp_grandes - v.ret_grandes) : '—';
-          const difM = (v.ret_medianas !== null) ? (v.desp_medianas - v.ret_medianas) : '—';
-          const difP = (v.ret_pequenas !== null) ? (v.desp_pequenas - v.ret_pequenas) : '—';
-          const difE = (v.ret_estibas !== null) ? (v.desp_estibas - v.ret_estibas) : '—';
-
-          const estadoBadge = `<span class="badge ${ESTADOS_BADGE[v.estado] || 'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span>`;
+          const difG = v.ret_grandes  !== null ? v.ret_grandes  - v.desp_grandes  : '—';
+          const difP = v.ret_pequenas !== null ? v.ret_pequenas - v.desp_pequenas : '—';
+          const difE = v.ret_estibas  !== null ? v.ret_estibas  - v.desp_estibas  : '—';
+          const hasDif = difG !== '—';
 
           return `<tr class="viaje-row">
             <td>${formatFecha(v.fecha)}</td>
             <td class="td-num-viaje">${UI.escapeHtml(v.numero_viaje)}</td>
-            <td title="${UI.escapeHtml(condMap[v.conductor_id] || '')}">${abrevNombre(condMap[v.conductor_id] || '')}</td>
-            <td title="${UI.escapeHtml(auxMap[v.auxiliar_id] || '')}">${abrevNombre(auxMap[v.auxiliar_id] || '')}</td>
-            <td>${UI.escapeHtml(v.placa)}</td>
-            <td>${UI.escapeHtml(v.remolque || '—')}</td>
-            <td>${UI.escapeHtml(v.numero_factura || '—')}</td>
+            <td title="${UI.escapeHtml(condMap[v.conductor_id]||'')}">${abrevNombre(condMap[v.conductor_id]||'')}</td>
+            <td title="${UI.escapeHtml(auxMap[v.auxiliar_id]||'')}">${abrevNombre(auxMap[v.auxiliar_id]||'')}</td>
+            <td>${UI.escapeHtml(v.numero_factura||'—')}</td>
             <td class="td-num">${v.desp_grandes}</td>
-            <td class="td-num">${v.desp_medianas}</td>
             <td class="td-num">${v.desp_pequenas}</td>
             <td class="td-num">${v.desp_estibas}</td>
-            <td class="td-num">${v.ret_grandes !== null ? v.ret_grandes : '—'}</td>
-            <td class="td-num">${v.ret_medianas !== null ? v.ret_medianas : '—'}</td>
+            <td class="td-num">${v.ret_grandes  !== null ? v.ret_grandes  : '—'}</td>
             <td class="td-num">${v.ret_pequenas !== null ? v.ret_pequenas : '—'}</td>
-            <td class="td-num">${v.ret_estibas !== null ? v.ret_estibas : '—'}</td>
-            <td class="td-num ${difG < 0 ? 'td-num-neg' : ''}">${difG}</td>
-            <td class="td-num ${difM < 0 ? 'td-num-neg' : ''}">${difM}</td>
-            <td class="td-num ${difP < 0 ? 'td-num-neg' : ''}">${difP}</td>
-            <td class="td-num ${difE < 0 ? 'td-num-neg' : ''}">${difE}</td>
-            <td>${estadoBadge}</td>
-            <td class="td-acc">
-              <button class="btn-accion btn-ver" onclick="APP.verDetalleViaje('${v.id}')" title="Ver detalle">👁️</button>
-              ${v.firma_despacho_url ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_despacho_url}','Firma Despacho')" title="Ver firma despacho">📤🖊️</button>` : ''}
-              ${v.firma_retorno_url  ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_retorno_url}','Firma Retorno')" title="Ver firma retorno">📥🖊️</button>` : ''}
+            <td class="td-num">${v.ret_estibas  !== null ? v.ret_estibas  : '—'}</td>
+            <td class="td-num ${hasDif && difG < 0 ? 'td-num-neg' : hasDif && difG > 0 ? 'td-num-pos' : ''}">${hasDif && difG > 0 ? '+' : ''}${difG}</td>
+            <td class="td-num ${hasDif && difP < 0 ? 'td-num-neg' : hasDif && difP > 0 ? 'td-num-pos' : ''}">${hasDif && difP > 0 ? '+' : ''}${difP}</td>
+            <td class="td-num ${hasDif && difE < 0 ? 'td-num-neg' : hasDif && difE > 0 ? 'td-num-pos' : ''}">${hasDif && difE > 0 ? '+' : ''}${difE}</td>
+            <td><span class="badge ${ESTADOS_BADGE[v.estado]||'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span></td>
+            <td class="td-acc" style="text-align:center">
+              <button class="btn-accion btn-ver" onclick="APP.verDetalleViaje('${v.id}')" title="Ver detalle">👁</button>
+              ${v.firma_despacho_url ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_despacho_url}','Firma Despacho')" title="Firma despacho">📤🖊</button>` : ''}
+              ${v.firma_retorno_url  ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_retorno_url}','Firma Retorno')" title="Firma retorno">📥🖊</button>` : ''}
             </td>
           </tr>`;
         }).join('');
@@ -321,7 +364,7 @@ const UI_VIAJES = (() => {
     UI.setLoading(false);
   }
 
-  // ─── Retornos ─────────────────────────────────────────────────────────────
+  // ─── Retornos ───────────────────────────────────────────────────────────────
   async function renderRetornos() {
     UI.setLoading(true);
     try {
@@ -330,33 +373,47 @@ const UI_VIAJES = (() => {
         DB_VIAJES.getConductores(),
         DB.getAuxiliares(),
       ]);
-
-      const condMap = {};
-      conductores.forEach(c => { condMap[c.id] = c.nombre; });
-      const auxMap = {};
-      auxiliares.forEach(a => { auxMap[a.id] = a.nombre; });
+      const condMap = {}; conductores.forEach(c => { condMap[c.id] = c.nombre; });
+      const auxMap  = {}; auxiliares.forEach(a => { auxMap[a.id]  = a.nombre; });
 
       const listEl = document.getElementById('retornos-list');
       if (abiertos.length === 0) {
-        listEl.innerHTML = '<p class="text-muted">No hay viajes pendientes de retorno</p>';
+        listEl.innerHTML = `<div class="empty-state">
+          <span class="empty-icon">✅</span>
+          <strong>Sin viajes pendientes</strong>
+          <p class="text-muted text-sm">Todos los viajes tienen retorno registrado.</p>
+        </div>`;
         return;
       }
 
       listEl.innerHTML = abiertos.map(v => {
         const dias = Math.floor((Date.now() - new Date(v.fecha)) / 86400000);
-        return `<div class="card retorno-card">
+        const sem  = dias === 0 ? 'green' : dias <= 2 ? 'yellow' : 'red';
+        const txt  = dias === 0 ? 'Hoy' : dias === 1 ? 'Hace 1 día' : `Hace ${dias} días`;
+        const total = (v.desp_grandes||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
+        return `<div class="card retorno-card" style="margin-bottom:.75rem">
           <div class="retorno-header">
             <div>
-              <div class="retorno-ref"><strong>${UI.escapeHtml(v.numero_viaje)}</strong> · ${UI.escapeHtml(v.placa)}</div>
-              <div class="text-muted small">${formatFecha(v.fecha)} · Hace ${dias} día${dias !== 1 ? 's' : ''}</div>
+              <div class="retorno-ref">
+                <span class="semaforo semaforo-${sem}" style="margin-right:.4rem"></span>
+                <strong>${UI.escapeHtml(v.numero_viaje)}</strong> · ${UI.escapeHtml(v.placa)}
+              </div>
+              <div class="text-muted text-sm" style="margin-top:.2rem">
+                ${formatFecha(v.fecha)} · ${txt}
+              </div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="APP.abrirFormularioRetorno('${v.id}')">Registrar retorno</button>
+            <button class="btn btn-primary btn-sm" onclick="APP.abrirFormularioRetorno('${v.id}')">
+              Registrar retorno
+            </button>
           </div>
           <div class="retorno-desp">
-            <strong>Despachado:</strong> ${v.desp_grandes} G · ${v.desp_medianas} M · ${v.desp_pequenas} P · ${v.desp_estibas} E
+            <strong>Despachado:</strong>
+            ${v.desp_grandes}G · ${v.desp_pequenas}P · ${v.desp_estibas}E
+            <span class="text-muted text-xs">(total: ${total})</span>
           </div>
-          <div class="retorno-meta text-muted small">
-            Conductor: ${condMap[v.conductor_id] || '—'} · Auxiliar: ${auxMap[v.auxiliar_id] || '—'}
+          <div class="retorno-meta text-muted text-sm">
+            🧑‍✈️ ${condMap[v.conductor_id]||'—'} · 👷 ${auxMap[v.auxiliar_id]||'—'}
+            ${v.numero_factura ? ` · 🧾 ${UI.escapeHtml(v.numero_factura)}` : ''}
           </div>
         </div>`;
       }).join('');
@@ -364,7 +421,7 @@ const UI_VIAJES = (() => {
     UI.setLoading(false);
   }
 
-  // ─── Conductores ──────────────────────────────────────────────────────────
+  // ─── Conductores ────────────────────────────────────────────────────────────
   async function renderConductores() {
     UI.setLoading(true);
     try {
@@ -374,24 +431,19 @@ const UI_VIAJES = (() => {
         listEl.innerHTML = '<p class="text-muted">No hay conductores registrados</p>';
         return;
       }
-
       listEl.innerHTML = conductores.map(c => {
-        const statusClass = c.activo ? 'badge-green' : 'badge-gray';
-        const statusLabel = c.activo ? 'Activo' : 'Inactivo';
         const safeName = UI.escapeHtml(c.nombre).replace(/'/g, "\\'");
         return `<div class="persona-card ${!c.activo ? 'inactive' : ''}"
-          onclick="APP.verHistorialConductor('${c.id}','${safeName}')"
-          style="cursor:pointer" title="Ver viajes">
+          onclick="APP.verHistorialConductor('${c.id}','${safeName}')" style="cursor:pointer">
           <div class="persona-info">
             <div class="persona-nombre">${UI.escapeHtml(c.nombre)}</div>
             <div class="persona-cedula">CC: ${UI.escapeHtml(c.cedula)}</div>
           </div>
           <div class="persona-actions">
-            <span class="badge ${statusClass}">${statusLabel}</span>
+            <span class="badge ${c.activo ? 'badge-green' : 'badge-gray'}">${c.activo ? 'Activo' : 'Inactivo'}</span>
             ${c.activo
-              ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();APP.toggleConductor('${c.id}', false)">Desactivar</button>`
-              : `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();APP.toggleConductor('${c.id}', true)">Activar</button>`
-            }
+              ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();APP.toggleConductor('${c.id}',false)">Desactivar</button>`
+              : `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();APP.toggleConductor('${c.id}',true)">Activar</button>`}
           </div>
         </div>`;
       }).join('');
@@ -399,31 +451,31 @@ const UI_VIAJES = (() => {
     UI.setLoading(false);
   }
 
-  // ─── Configuración ────────────────────────────────────────────────────────
+  // ─── Configuración ──────────────────────────────────────────────────────────
   async function renderConfiguracion() {
     UI.setLoading(true);
     try {
       const inv = await DB_VIAJES.getInventarioInicial();
-      document.getElementById('inv-grandes').value  = inv.grandes;
-      document.getElementById('inv-medianas').value = inv.medianas;
-      document.getElementById('inv-pequenas').value = inv.pequenas;
-      document.getElementById('inv-estibas').value  = inv.estibas;
+      document.getElementById('inv-grandes').value  = inv.grandes  || 0;
+      document.getElementById('inv-medianas').value = inv.medianas || 0;
+      document.getElementById('inv-pequenas').value = inv.pequenas || 0;
+      document.getElementById('inv-estibas').value  = inv.estibas  || 0;
     } catch (err) { console.warn(err); }
     UI.setLoading(false);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ─── Helpers ────────────────────────────────────────────────────────────────
   function formatFecha(fecha) {
     if (!fecha) return '—';
-    const d = new Date(fecha);
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    const [y, m, d] = fecha.split('-');
+    return `${d}/${m}/${y}`;
   }
 
   function abrevNombre(nombre) {
     if (!nombre) return '—';
-    const partes = nombre.split(' ');
-    if (partes.length <= 2) return nombre;
-    return partes[0] + ' ' + partes.slice(1).map(p => p[0] + '.').join(' ');
+    const p = nombre.split(' ');
+    if (p.length <= 2) return nombre;
+    return p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join(' ');
   }
 
   return {

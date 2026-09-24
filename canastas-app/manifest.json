@@ -1,11 +1,11 @@
 {
-  "name": "Control de Canastas · Alpina",
+  "name": "Control de Canastas",
   "short_name": "Canastas",
-  "description": "Sistema de gestión de despachos y retornos de envases",
+  "description": "Sistema de control de inventario de canastas para auxiliares y clientes",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#1E3A5F",
+  "theme_color": "#2563EB",
   "background_color": "#F3F4F6",
   "lang": "es",
   "categories": ["business", "productivity"],
@@ -31,10 +31,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Nuevo Despacho",
-      "short_name": "Despacho",
-      "description": "Registrar un nuevo despacho de envases",
-      "url": "./index.html#viajes",
+      "name": "Nuevo Movimiento",
+      "short_name": "Movimiento",
+      "description": "Registrar un nuevo movimiento de canastas",
+      "url": "./index.html#movimiento",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {

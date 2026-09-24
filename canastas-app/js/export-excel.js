@@ -189,10 +189,10 @@ const EXCEL = (() => {
     let totD = [0,0,0,0], totR = [0,0,0,0], totDif = [0,0,0,0];
     rows.forEach((v, idx) => {
       const bg = idx % 2 === 0 ? C.blanco : C.gris_fila;
-      const difG = v.ret_grandes  !== null ? v.desp_grandes  - v.ret_grandes  : null;
-      const difM = v.ret_medianas !== null ? v.desp_medianas - v.ret_medianas : null;
-      const difP = v.ret_pequenas !== null ? v.desp_pequenas - v.ret_pequenas : null;
-      const difE = v.ret_estibas  !== null ? v.desp_estibas  - v.ret_estibas  : null;
+      const difG = v.ret_grandes  !== null ? v.ret_grandes  - v.desp_grandes  : null;
+      const difM = v.ret_medianas !== null ? v.ret_medianas - v.desp_medianas : null;
+      const difP = v.ret_pequenas !== null ? v.ret_pequenas - v.desp_pequenas : null;
+      const difE = v.ret_estibas  !== null ? v.ret_estibas  - v.desp_estibas  : null;
 
       const difColor = (d) => d === null ? C.blanco : d < 0 ? C.rojo_claro : d > 0 ? C.naranja_claro : C.verde_claro;
       const difFont  = (d) => d === null ? C.negro  : d < 0 ? C.rojo      : d > 0 ? C.naranja      : C.verde_oscuro;
@@ -442,12 +442,12 @@ const EXCEL = (() => {
         despG += v.desp_grandes  || 0; despM += v.desp_medianas || 0;
         despP += v.desp_pequenas || 0; despE += v.desp_estibas  || 0;
         if (v.ret_grandes  !== null) retG   += v.ret_grandes;
-        if (v.ret_grandes  !== null) difTot += (v.desp_grandes  - v.ret_grandes);
-        if (v.ret_medianas !== null) difTot += (v.desp_medianas - v.ret_medianas);
-        if (v.ret_pequenas !== null) difTot += (v.desp_pequenas - v.ret_pequenas);
-        if (v.ret_estibas  !== null) difTot += (v.desp_estibas  - v.ret_estibas);
+        if (v.ret_grandes  !== null) difTot += (v.ret_grandes  - v.desp_grandes);
+        if (v.ret_medianas !== null) difTot += (v.ret_medianas - v.desp_medianas);
+        if (v.ret_pequenas !== null) difTot += (v.ret_pequenas - v.desp_pequenas);
+        if (v.ret_estibas  !== null) difTot += (v.ret_estibas  - v.desp_estibas);
       });
-      const difG = despG - retG;
+      const difG = retG - despG;
       const difBg  = difTot < 0 ? C.rojo_claro : difTot > 0 ? C.naranja_claro : C.verde_claro;
       const difFc  = difTot < 0 ? C.rojo : difTot > 0 ? C.naranja : C.verde_oscuro;
 

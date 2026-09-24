@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/carga", "destination": "/canastas-app/carga.html" },
     { "source": "/(.*)", "destination": "/canastas-app/$1" }
   ]
 }

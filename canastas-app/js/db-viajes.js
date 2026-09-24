@@ -135,11 +135,12 @@ const DB_VIAJES = (() => {
 
   async function registrarViaje({
     conductor_id, auxiliar_id, placa, remolque, numero_factura,
+    zona_id,
     desp_grandes, desp_medianas, desp_pequenas, desp_estibas,
     observaciones, admin_registrador
   }) {
-    if (!conductor_id || !auxiliar_id || !placa) {
-      throw new Error('Conductor, auxiliar y placa son obligatorios');
+    if (!conductor_id || !auxiliar_id) {
+      throw new Error('Conductor y auxiliar son obligatorios');
     }
 
     const numero = await generateNumeroViaje();
@@ -148,8 +149,9 @@ const DB_VIAJES = (() => {
       fecha: new Date().toISOString().split('T')[0], // YYYY-MM-DD
       conductor_id,
       auxiliar_id,
-      placa:        placa.trim().toUpperCase(),
+      placa:        placa ? placa.trim().toUpperCase() : '',
       remolque:     remolque ? remolque.trim().toUpperCase() : null,
+      zona_id:      zona_id || null,
       numero_factura: numero_factura ? numero_factura.trim() : null,
       desp_grandes:  parseInt(desp_grandes,  10) || 0,
       desp_medianas: parseInt(desp_medianas, 10) || 0,
@@ -238,10 +240,10 @@ const DB_VIAJES = (() => {
     ];
 
     const rows = viajes.map(v => {
-      const difG = (v.ret_grandes !== null) ? (v.desp_grandes - v.ret_grandes) : '';
-      const difM = (v.ret_medianas !== null) ? (v.desp_medianas - v.ret_medianas) : '';
-      const difP = (v.ret_pequenas !== null) ? (v.desp_pequenas - v.ret_pequenas) : '';
-      const difE = (v.ret_estibas !== null) ? (v.desp_estibas - v.ret_estibas) : '';
+      const difG = (v.ret_grandes !== null) ? (v.ret_grandes - v.desp_grandes) : '';
+      const difM = (v.ret_medianas !== null) ? (v.ret_medianas - v.desp_medianas) : '';
+      const difP = (v.ret_pequenas !== null) ? (v.ret_pequenas - v.desp_pequenas) : '';
+      const difE = (v.ret_estibas !== null) ? (v.ret_estibas - v.desp_estibas) : '';
 
       return [
         v.fecha,
@@ -295,10 +297,10 @@ const DB_VIAJES = (() => {
       totalDesp,
       totalRet,
       diferencia: {
-        grandes:  totalDesp.grandes  - totalRet.grandes,
-        medianas: totalDesp.medianas - totalRet.medianas,
-        pequenas: totalDesp.pequenas - totalRet.pequenas,
-        estibas:  totalDesp.estibas  - totalRet.estibas,
+        grandes:  totalRet.grandes  - totalDesp.grandes,
+        medianas: totalRet.medianas - totalDesp.medianas,
+        pequenas: totalRet.pequenas - totalDesp.pequenas,
+        estibas:  totalRet.estibas  - totalDesp.estibas,
       },
     };
   }
