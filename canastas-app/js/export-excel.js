@@ -96,6 +96,7 @@ const EXCEL = (() => {
     const wb = XLSX.utils.book_new();
     _crearHojaViajes(wb, rows, condMap, auxMap, inventario);
     _crearHojaResumen(wb, rows, condMap, inventario);
+    _crearHojaPorAuxiliar(wb, rows, auxMap);
     _crearHojaPorConductor(wb, rows, condMap);
 
     const fecha = new Date().toISOString().slice(0, 10);
@@ -168,8 +169,9 @@ const EXCEL = (() => {
 
     // Encabezado fila 6: columnas individuales
     const headers = [
-      ['FECHA', C.azul_oscuro], ['#', C.azul_oscuro], ['CONDUCTOR', C.azul_oscuro],
-      ['AUXILIAR', C.azul_oscuro], ['PLACA', C.azul_oscuro], ['REMOLQUE', C.azul_oscuro],
+      ['FECHA', C.azul_oscuro], ['#', C.azul_oscuro],
+      ['AUXILIAR (RESPONSABLE)', C.azul_oscuro], ['CONDUCTOR', C.azul_oscuro],
+      ['PLACA', C.azul_oscuro], ['REMOLQUE', C.azul_oscuro],
       ['FACTURA', C.azul_oscuro],
       ['G', C.azul_medio], ['M', C.azul_medio], ['P', C.azul_medio], ['E', C.azul_medio],
       ['G', C.verde_oscuro], ['M', C.verde_oscuro], ['P', C.verde_oscuro], ['E', C.verde_oscuro],
@@ -214,8 +216,8 @@ const EXCEL = (() => {
       const rowData = [
         cell(v.fecha, bg, false, C.negro, 9),
         cell(v.numero_viaje, bg, true, C.azul_oscuro, 8),
+        cell(auxMap[v.auxiliar_id] || '', bg, true, C.azul_oscuro, 9),
         cell(condMap[v.conductor_id] || '', bg, false, C.negro, 9),
-        cell(auxMap[v.auxiliar_id] || '', bg, false, C.negro, 9),
         cell(v.placa, bg, true, C.negro, 9),
         cell(v.remolque || '', bg, false, C.negro, 9),
         cell(v.numero_factura || '', bg, false, C.negro, 9),
@@ -396,7 +398,90 @@ const EXCEL = (() => {
     XLSX.utils.book_append_sheet(wb, ws, '📊 Resumen');
   }
 
-  // ── Hoja 3: Por conductor ─────────────────────────────────────────────────
+  // ── Hoja 3: Por Auxiliar (Responsables) ──────────────────────────────────
+  function _crearHojaPorAuxiliar(wb, rows, auxMap) {
+    const ws = {};
+    let r = 0;
+
+    if (!ws['!merges']) ws['!merges'] = [];
+
+    ws[XLSX.utils.encode_cell({ r, c: 0 })] = {
+      v: '👷 RANKING Y DETALLE POR AUXILIAR (RESPONSABLES)', t: 's',
+      s: { fill: fill(C.azul_oscuro), font: font(true, C.blanco, 13),
+           alignment: align('center'), border: border() }
+    };
+    ws['!merges'].push({ s: { r, c: 0 }, e: { r, c: 9 } });
+    for (let c = 1; c < 10; c++) {
+      ws[XLSX.utils.encode_cell({ r, c })] = { v: '', t: 's', s: { fill: fill(C.azul_oscuro), border: border() } };
+    }
+    r += 2;
+
+    // Agrupar por auxiliar
+    const porAuxiliar = {};
+    rows.forEach(v => {
+      const id = v.auxiliar_id;
+      if (!id) return;
+      if (!porAuxiliar[id]) porAuxiliar[id] = { nombre: auxMap[id] || id, viajes: [] };
+      porAuxiliar[id].viajes.push(v);
+    });
+
+    // Headers tabla
+    const hdr = ['AUXILIAR (RESPONSABLE)', 'VIAJES', 'CERRADOS', 'PENDIENTES', 'G DESP', 'M DESP', 'P DESP', 'E DESP', 'DIF G', 'DIF TOTAL'];
+    hdr.forEach((h, c) => {
+      ws[XLSX.utils.encode_cell({ r, c })] = cell(h, C.azul_oscuro, true, C.blanco, 9, 'center');
+    });
+    r++;
+
+    // Ordenar por más viajes
+    const sorted = Object.values(porAuxiliar).sort((a, b) => b.viajes.length - a.viajes.length);
+
+    sorted.forEach((aux, idx) => {
+      const bg = idx % 2 === 0 ? C.blanco : C.gris_fila;
+      const cerrados   = aux.viajes.filter(v => v.estado === 'cerrado').length;
+      const pendientes = aux.viajes.filter(v => v.estado === 'abierto').length;
+      let despG = 0, despM = 0, despP = 0, despE = 0, retG = 0;
+      let difTot = 0;
+      aux.viajes.forEach(v => {
+        despG += v.desp_grandes  || 0; despM += v.desp_medianas || 0;
+        despP += v.desp_pequenas || 0; despE += v.desp_estibas  || 0;
+        if (v.ret_grandes  !== null) retG   += v.ret_grandes;
+        if (v.ret_grandes  !== null) difTot += (v.ret_grandes  - v.desp_grandes);
+        if (v.ret_medianas !== null) difTot += (v.ret_medianas - v.desp_medianas);
+        if (v.ret_pequenas !== null) difTot += (v.ret_pequenas - v.desp_pequenas);
+        if (v.ret_estibas  !== null) difTot += (v.ret_estibas  - v.desp_estibas);
+      });
+      const difG = retG - despG;
+      const difBg  = difTot < 0 ? C.rojo_claro : difTot > 0 ? C.naranja_claro : C.verde_claro;
+      const difFc  = difTot < 0 ? C.rojo : difTot > 0 ? C.naranja : C.verde_oscuro;
+
+      [
+        cell(aux.nombre, bg, true, C.azul_oscuro, 9),
+        { v: aux.viajes.length, t: 'n', s: { fill: fill(bg), font: font(true, C.negro, 10), border: border(), alignment: align('center') } },
+        { v: cerrados,   t: 'n', s: { fill: fill(C.verde_claro), font: font(true, C.verde_oscuro, 10), border: border(), alignment: align('center') } },
+        { v: pendientes, t: 'n', s: { fill: fill(pendientes > 0 ? C.naranja_claro : bg), font: font(true, pendientes > 0 ? C.naranja : C.negro, 10), border: border(), alignment: align('center') } },
+        { v: despG, t: 'n', s: { fill: fill(C.azul_claro), font: font(false, C.azul_oscuro, 9), border: border(), alignment: align('center') } },
+        { v: despM, t: 'n', s: { fill: fill(C.azul_claro), font: font(false, C.azul_oscuro, 9), border: border(), alignment: align('center') } },
+        { v: despP, t: 'n', s: { fill: fill(C.azul_claro), font: font(false, C.azul_oscuro, 9), border: border(), alignment: align('center') } },
+        { v: despE, t: 'n', s: { fill: fill(C.azul_claro), font: font(false, C.azul_oscuro, 9), border: border(), alignment: align('center') } },
+        { v: difG,   t: 'n', s: { fill: fill(difBg), font: font(true, difFc, 10), border: border(), alignment: align('center') } },
+        { v: difTot, t: 'n', s: { fill: fill(difBg), font: font(true, difFc, 11), border: border(), alignment: align('center') } },
+      ].forEach((cel, c) => { ws[XLSX.utils.encode_cell({ r, c })] = cel; });
+      r++;
+    });
+
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r, c: 9 } });
+    ws['!cols'] = [
+      { wch: 32 }, { wch: 8 }, { wch: 10 }, { wch: 11 },
+      { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+      { wch: 8 }, { wch: 10 },
+    ];
+    ws['!rows'] = Array(r + 1).fill({ hpt: 20 });
+    ws['!rows'][0] = { hpt: 30 };
+
+    XLSX.utils.book_append_sheet(wb, ws, '👷 Por Auxiliar');
+  }
+
+  // ── Hoja 4: Por conductor ─────────────────────────────────────────────────
   function _crearHojaPorConductor(wb, rows, condMap) {
     const ws = {};
     let r = 0;

@@ -63,13 +63,13 @@ const FIRMA = (() => {
       _mostrarPad({
         titulo:      esDespacho ? '📤 Despacho de Material' : '📥 Retorno de Material',
         subtitulo:   numeroViaje,
-        nombre:      conductorNombre,
-        sublabel:    `Auxiliar: ${auxiliarNombre}`,
+        nombre:      auxiliarNombre || 'Auxiliar Responsable',
+        sublabel:    conductorNombre ? `Conductor: ${conductorNombre}` : '',
         color:       esDespacho ? '#1E3A5F' : '#16A34A',
-        emoji:       esDespacho ? '🚛' : '📦',
+        emoji:       esDespacho ? '👷' : '📦',
         instruccion: esDespacho
-          ? 'Firma del conductor confirmando el despacho'
-          : 'Firma confirmando el retorno del material',
+          ? 'Firma del auxiliar responsable confirmando el despacho'
+          : 'Firma del auxiliar responsable confirmando el retorno',
       });
     });
   }

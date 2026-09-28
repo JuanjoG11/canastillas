@@ -57,9 +57,9 @@ const APP = (() => {
     document.getElementById('btn-vf-filtrar')?.addEventListener('click', aplicarFiltrosViajes);
     document.getElementById('btn-vf-limpiar')?.addEventListener('click', limpiarFiltrosViajes);
     document.getElementById('btn-vf-csv')?.addEventListener('click', exportarViajesCSV);
-    document.getElementById('vf-conductor-txt')?.addEventListener('input', () => {
-      if (!document.getElementById('vf-conductor-txt').value.trim())
-        document.getElementById('vf-conductor').value = '';
+    document.getElementById('vf-auxiliar-txt')?.addEventListener('input', () => {
+      if (!document.getElementById('vf-auxiliar-txt').value.trim())
+        document.getElementById('vf-auxiliar').value = '';
     });
 
     // Búsqueda conductores
@@ -158,9 +158,9 @@ const APP = (() => {
         case 'viajes':
           await UI_VIAJES.renderViajes(viajesFiltros);
           try {
-            const conds = await DB_VIAJES.getConductores(false);
-            _bindInlineSearch('vf-conductor-txt', 'vf-conductor-list', 'vf-conductor',
-              conds, c => c.nombre, c => `CC: ${c.cedula}`);
+            const auxs = await DB.getAuxiliares(false);
+            _bindInlineSearch('vf-auxiliar-txt', 'vf-auxiliar-list', 'vf-auxiliar',
+              auxs, a => a.nombre, a => `CC: ${a.cedula}`);
           } catch (_) {}
           break;
 
@@ -242,23 +242,23 @@ const APP = (() => {
     try { stockHoy = await DB_ZONAS.getStockHoy(); } catch (_) {}
     UI.setLoading(false);
 
-    if (conductores.length === 0) {
+    if (auxiliares.length === 0) {
       openDrawer('🚛 Nuevo Despacho', `
         <div class="field-info" style="border-left-color:var(--danger);background:var(--danger-light);color:#991B1B;margin-bottom:1rem">
-          ⚠️ <strong>No hay conductores registrados.</strong><br>
-          Usa el botón de abajo para agregar uno.
+          ⚠️ <strong>No hay auxiliares registrados.</strong><br>
+          El auxiliar es el responsable del viaje. Agrega uno primero.
         </div>
-        <button class="btn btn-primary btn-block" id="btn-crear-primer-conductor">+ Agregar conductor</button>
+        <button class="btn btn-primary btn-block" id="btn-crear-primer-auxiliar">+ Agregar auxiliar</button>
       `);
-      document.getElementById('btn-crear-primer-conductor')?.addEventListener('click', async () => {
-        const nombre = prompt('Nombre del conductor:');
+      document.getElementById('btn-crear-primer-auxiliar')?.addEventListener('click', async () => {
+        const nombre = prompt('Nombre del auxiliar:');
         if (!nombre?.trim()) return;
         const cedula = prompt('Cédula:');
         if (cedula === null) return;
         UI.setLoading(true);
         try {
-          await DB_VIAJES.addConductor(nombre.trim().toUpperCase(), cedula.trim() || Date.now().toString());
-          UI.toast('Conductor creado. Abre el formulario de nuevo.', 'success');
+          await DB.addAuxiliar(nombre.trim().toUpperCase(), cedula.trim() || Date.now().toString());
+          UI.toast('Auxiliar creado. Abre el formulario de nuevo.', 'success');
           closeDrawer();
         } catch (err) { UI.toast(err.message, 'error'); }
         UI.setLoading(false);
@@ -281,23 +281,29 @@ const APP = (() => {
       <form id="form-despacho" novalidate>
 
         <div class="form-group" style="margin-bottom:1.25rem">
-          <label style="font-size:.9rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;display:block">🧑‍✈️ Conductor</label>
+          <label style="font-size:.9rem;font-weight:700;color:var(--gray-800);margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between">
+            <span>👷 Auxiliar <strong style="color:var(--brand)">(Responsable del Viaje) *</strong></span>
+            <span style="font-size:.75rem;font-weight:700;color:var(--danger)">Obligatorio</span>
+          </label>
           <div style="position:relative">
-            <input id="desp-conductor-txt" class="form-control" type="text" placeholder="Buscar por nombre..." autocomplete="off" style="font-size:1rem;padding:.75rem 1rem" />
+            <input id="desp-auxiliar-txt" class="form-control" type="text" placeholder="Buscar auxiliar por nombre o cédula..." autocomplete="off" style="font-size:1rem;padding:.75rem 1rem" />
+            <input type="hidden" id="desp-auxiliar" />
+            <div id="desp-auxiliar-list" class="inline-search-list hidden"></div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1.25rem">
+          <label style="font-size:.9rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;display:flex;align-items:center;justify-content:space-between">
+            <span>🧑‍✈️ Conductor <span style="font-weight:400;color:var(--gray-500)">(Transportador / Opcional)</span></span>
+            <span style="font-size:.75rem;font-weight:400;color:var(--gray-500)">Opcional</span>
+          </label>
+          <div style="position:relative">
+            <input id="desp-conductor-txt" class="form-control" type="text" placeholder="Buscar conductor o dejar vacío..." autocomplete="off" style="font-size:1rem;padding:.75rem 1rem" />
             <input type="hidden" id="desp-conductor" />
             <div id="desp-conductor-list" class="inline-search-list hidden"></div>
           </div>
           <div id="desp-conductor-nuevo" class="hidden" style="margin-top:.5rem">
             <button type="button" id="btn-crear-conductor" class="btn btn-outline btn-sm">+ Crear conductor nuevo</button>
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-bottom:1.25rem">
-          <label style="font-size:.9rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;display:block">👷 Auxiliar</label>
-          <div style="position:relative">
-            <input id="desp-auxiliar-txt" class="form-control" type="text" placeholder="Buscar por nombre o cédula..." autocomplete="off" style="font-size:1rem;padding:.75rem 1rem" />
-            <input type="hidden" id="desp-auxiliar" />
-            <div id="desp-auxiliar-list" class="inline-search-list hidden"></div>
           </div>
         </div>
 
@@ -405,10 +411,10 @@ const APP = (() => {
     // Submit despacho
     document.getElementById('form-despacho')?.addEventListener('submit', async e => {
       e.preventDefault();
-      const conductor_id = document.getElementById('desp-conductor').value;
       const auxiliar_id  = document.getElementById('desp-auxiliar').value;
-      if (!conductor_id || !auxiliar_id) {
-        UI.toast('Selecciona conductor y auxiliar', 'error');
+      const conductor_id = document.getElementById('desp-conductor').value || null;
+      if (!auxiliar_id) {
+        UI.toast('El auxiliar responsable es obligatorio', 'error');
         return;
       }
       UI.setLoading(true);
@@ -441,18 +447,18 @@ const APP = (() => {
         closeDrawer();
         UI.setLoading(false);
 
-        // Firma
-        const condNombre = conductores.find(c => c.id === conductor_id)?.nombre || 'Conductor';
-        const auxNombre  = auxiliares.find(a => a.id === auxiliar_id)?.nombre || 'Auxiliar';
+        // Firma del auxiliar responsable
+        const condNombre = conductores.find(c => c.id === conductor_id)?.nombre || '';
+        const auxNombre  = auxiliares.find(a => a.id === auxiliar_id)?.nombre || 'Auxiliar Responsable';
         const firmaUrl = await FIRMA.solicitarFirmaViaje({
           tipo: 'despacho', numeroViaje: viaje.numero_viaje,
           conductorNombre: condNombre, auxiliarNombre: auxNombre,
         });
         if (firmaUrl) {
           await DB_VIAJES.guardarFirmaDespacho(viaje.id, firmaUrl);
-          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado y firmado`, 'success');
+          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado y firmado por auxiliar`, 'success');
         } else {
-          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado sin firma`, 'success');
+          UI.toast(`✓ Despacho ${viaje.numero_viaje} registrado a cargo de ${auxNombre}`, 'success');
         }
         await navigateTo('viajes');
       } catch (err) {
@@ -609,7 +615,8 @@ const APP = (() => {
     openDrawer('📥 Registrar Retorno', `
       <div style="background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem 1.125rem;margin-bottom:1.25rem">
         <div style="font-size:1.0625rem;font-weight:800;color:var(--gray-800);margin-bottom:.25rem">${UI.escapeHtml(viaje.numero_viaje)}</div>
-        <div style="font-size:.8125rem;color:var(--gray-500)">${UI.escapeHtml(condNombre)} · ${UI.escapeHtml(auxNombre)}</div>
+        <div style="font-size:.875rem;font-weight:700;color:var(--gray-900)">👷 Auxiliar (Responsable): ${UI.escapeHtml(auxNombre)}</div>
+        ${condNombre && condNombre !== '—' ? `<div style="font-size:.78rem;color:var(--gray-500);margin-top:.15rem">🧑‍✈️ Conductor: ${UI.escapeHtml(condNombre)}</div>` : ''}
         ${viaje.placa ? `<div style="font-size:.8125rem;font-weight:600;color:var(--gray-700);margin-top:.25rem">🚛 Placa: ${UI.escapeHtml(viaje.placa)}</div>` : ''}
         <div style="margin-top:.625rem;background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;border-radius:var(--radius-xs);padding:.5rem .75rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem">
           <span>🔒</span>
@@ -823,7 +830,7 @@ const APP = (() => {
 
         const firmaUrl = await FIRMA.solicitarFirmaViaje({
           tipo: 'retorno', numeroViaje: viajeAct.numero_viaje,
-          conductorNombre: condNombre, auxiliarNombre: auxNombre,
+          conductorNombre: (condNombre !== '—' ? condNombre : ''), auxiliarNombre: auxNombre,
         });
         if (firmaUrl) {
           await DB_VIAJES.guardarFirmaRetorno(viajeAct.id, firmaUrl);
@@ -879,8 +886,8 @@ const APP = (() => {
     openDrawer(`🚛 ${UI.escapeHtml(viaje.numero_viaje)}`, `
       <div class="detalle-grid">
         <div class="detalle-row"><span>Fecha:</span><span>${viaje.fecha}</span></div>
-        <div class="detalle-row"><span>Conductor:</span><span>${UI.escapeHtml(condNombre)}</span></div>
-        <div class="detalle-row"><span>Auxiliar:</span><span>${UI.escapeHtml(auxNombre)}</span></div>
+        <div class="detalle-row"><span>Auxiliar (Responsable):</span><strong style="color:var(--gray-900)">👷 ${UI.escapeHtml(auxNombre)}</strong></div>
+        <div class="detalle-row"><span>Conductor:</span><span>🧑‍✈️ ${UI.escapeHtml(condNombre)}</span></div>
         ${viaje.zona_id ? `<div class="detalle-row"><span>Zona:</span><span><strong>${UI.escapeHtml(viaje.zona_id)}</strong></span></div>` : ''}
         <div class="detalle-row"><span>Despachado:</span><span>${viaje.desp_grandes}G · ${viaje.desp_pequenas}P · ${viaje.desp_estibas}E</span></div>
         ${retBlock}
@@ -1131,10 +1138,10 @@ const APP = (() => {
 
   async function aplicarFiltrosViajes() {
     viajesFiltros = {
-      fechaDesde:   document.getElementById('vf-desde')?.value || null,
-      fechaHasta:   document.getElementById('vf-hasta')?.value || null,
-      estado:       document.getElementById('vf-estado')?.value || 'todos',
-      conductor_id: document.getElementById('vf-conductor')?.value || null,
+      fechaDesde:  document.getElementById('vf-desde')?.value || null,
+      fechaHasta:  document.getElementById('vf-hasta')?.value || null,
+      estado:      document.getElementById('vf-estado')?.value || 'todos',
+      auxiliar_id: document.getElementById('vf-auxiliar')?.value || null,
     };
     await UI_VIAJES.renderViajes(viajesFiltros);
   }
@@ -1144,8 +1151,8 @@ const APP = (() => {
     const fields = ['vf-desde', 'vf-hasta'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const estado = document.getElementById('vf-estado'); if (estado) estado.value = 'todos';
-    const txt = document.getElementById('vf-conductor-txt'); if (txt) txt.value = '';
-    const hid = document.getElementById('vf-conductor');    if (hid) hid.value = '';
+    const txt = document.getElementById('vf-auxiliar-txt'); if (txt) txt.value = '';
+    const hid = document.getElementById('vf-auxiliar');    if (hid) hid.value = '';
     await UI_VIAJES.renderViajes({});
   }
 

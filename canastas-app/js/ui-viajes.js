@@ -75,7 +75,7 @@ const UI_VIAJES = (() => {
             </div>
             <div style="text-align:right">
               <div class="text-xs text-muted">${txt}</div>
-              <div class="text-xs text-muted">${abrevNombre(condMap[v.conductor_id] || '')}</div>
+              <div class="text-xs" style="font-weight:700;color:var(--gray-800)">👷 ${abrevNombre(auxMap[v.auxiliar_id] || '')}</div>
             </div>
           </div>`;
         }).join('');
@@ -109,7 +109,7 @@ const UI_VIAJES = (() => {
           return `<div class="viaje-dash-row">
             <div>
               <div style="font-size:.875rem;font-weight:700">${UI.escapeHtml(v.numero_viaje)} · ${UI.escapeHtml(v.placa)}</div>
-              <div class="text-muted text-xs">${abrevNombre(cMap[v.conductor_id] || '')} · ${abrevNombre(aMap[v.auxiliar_id] || '')} · ${formatFecha(v.fecha)}</div>
+              <div class="text-muted text-xs">👷 ${abrevNombre(aMap[v.auxiliar_id] || '')}${cMap[v.conductor_id] ? ` · 🧑‍✈️ ${abrevNombre(cMap[v.conductor_id])}` : ''} · ${formatFecha(v.fecha)}</div>
             </div>
             <span class="badge ${ESTADOS_BADGE[v.estado] || 'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span>
           </div>`;
@@ -286,6 +286,7 @@ const UI_VIAJES = (() => {
       if (filtros.fechaDesde)   filtered = filtered.filter(v => v.fecha >= filtros.fechaDesde);
       if (filtros.fechaHasta)   filtered = filtered.filter(v => v.fecha <= filtros.fechaHasta);
       if (filtros.estado && filtros.estado !== 'todos') filtered = filtered.filter(v => v.estado === filtros.estado);
+      if (filtros.auxiliar_id)  filtered = filtered.filter(v => v.auxiliar_id === filtros.auxiliar_id);
       if (filtros.conductor_id) filtered = filtered.filter(v => v.conductor_id === filtros.conductor_id);
 
       // Totales
@@ -404,9 +405,11 @@ const UI_VIAJES = (() => {
               <div style="font-size:.78rem;color:var(--gray-500);margin-top:2px">📅 ${formatFecha(v.fecha)}</div>
             </td>
             <td>
-              <div style="font-weight:700;color:var(--gray-800);font-size:.9rem">${UI.escapeHtml(condNom)}</div>
+              <div style="font-weight:800;color:var(--gray-900);font-size:.92rem;display:flex;align-items:center;gap:.35rem">
+                <span>👷</span> <span>${UI.escapeHtml(auxNom)}</span>
+              </div>
               <div style="font-size:.78rem;color:var(--gray-500);margin-top:2px">
-                👷 ${UI.escapeHtml(auxNom)}${v.zona_id ? ` · <strong style="color:var(--brand)">📍 ${UI.escapeHtml(v.zona_id)}</strong>` : ''}
+                🧑‍✈️ Cond: ${UI.escapeHtml(condNom)}${v.zona_id ? ` · <strong style="color:var(--brand)">📍 ${UI.escapeHtml(v.zona_id)}</strong>` : ''}
               </div>
             </td>
             <td>
@@ -475,8 +478,8 @@ const UI_VIAJES = (() => {
           <div class="retorno-desp" style="color:var(--gray-600);font-size:.8125rem;display:flex;align-items:center;gap:.35rem">
             <span>🔒</span> <span><strong>Conteo a ciegas:</strong> Cantidades ocultas para verificación en descarga</span>
           </div>
-          <div class="retorno-meta text-muted text-sm">
-            🧑‍✈️ ${condMap[v.conductor_id]||'—'} · 👷 ${auxMap[v.auxiliar_id]||'—'}
+          <div class="retorno-meta text-sm">
+            👷 <strong style="color:var(--gray-900)">${auxMap[v.auxiliar_id]||'—'}</strong> (Responsable) · <span class="text-muted">🧑‍✈️ ${condMap[v.conductor_id]||'—'}</span>
           </div>
         </div>`;
       }).join('');

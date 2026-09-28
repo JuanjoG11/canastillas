@@ -139,15 +139,15 @@ const DB_VIAJES = (() => {
     desp_grandes, desp_medianas, desp_pequenas, desp_estibas,
     observaciones, admin_registrador
   }) {
-    if (!conductor_id || !auxiliar_id) {
-      throw new Error('Conductor y auxiliar son obligatorios');
+    if (!auxiliar_id) {
+      throw new Error('El auxiliar responsable es obligatorio');
     }
 
     const numero = await generateNumeroViaje();
     const viaje = {
       numero_viaje: numero,
       fecha: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-      conductor_id,
+      conductor_id: conductor_id || null,
       auxiliar_id,
       placa:        placa ? placa.trim().toUpperCase() : '',
       remolque:     remolque ? remolque.trim().toUpperCase() : null,
@@ -169,8 +169,23 @@ const DB_VIAJES = (() => {
       updated_at:    new Date().toISOString(),
     };
 
-    const inserted = await POST('/viajes', viaje);
-    return Array.isArray(inserted) ? inserted[0] : inserted;
+    try {
+      const inserted = await POST('/viajes', viaje);
+      return Array.isArray(inserted) ? inserted[0] : inserted;
+    } catch (err) {
+      // Si la base de datos aún tiene restricción NOT NULL en conductor_id y no se pasó uno
+      if (!conductor_id && err.message && err.message.includes('conductor_id')) {
+        let conds = await getConductores();
+        let fallback = conds.find(c => c.activo) || conds[0];
+        if (!fallback) {
+          fallback = await addConductor('A CARGO AUXILIAR', '00000000');
+        }
+        viaje.conductor_id = fallback.id;
+        const inserted = await POST('/viajes', viaje);
+        return Array.isArray(inserted) ? inserted[0] : inserted;
+      }
+      throw err;
+    }
   }
 
   async function registrarRetorno(viaje_id, ret_grandes, ret_medianas, ret_pequenas, ret_estibas) {
@@ -232,10 +247,10 @@ const DB_VIAJES = (() => {
     auxiliares.forEach(a => { auxMap[a.id] = a.nombre; });
 
     const headers = [
-      'FECHA', 'CONDUCTOR', 'PLACA', 'REMOLQUE', '# FACTURA',
-      'GRANDES', 'MEDIANAS', 'PEQUEÑAS', 'ESTIBAS',
-      'GRANDES', 'MEDIANAS', 'PEQUEÑAS', 'ESTIBAS',
-      'GRANDES', 'MEDIANAS', 'PEQUEÑAS', 'ESTIBAS',
+      'FECHA', '# VIAJE', 'AUXILIAR (RESPONSABLE)', 'CONDUCTOR', 'PLACA', 'REMOLQUE', '# FACTURA',
+      'DESP GRANDES', 'DESP MEDIANAS', 'DESP PEQUEÑAS', 'DESP ESTIBAS',
+      'RET GRANDES', 'RET MEDIANAS', 'RET PEQUEÑAS', 'RET ESTIBAS',
+      'DIF GRANDES', 'DIF MEDIANAS', 'DIF PEQUEÑAS', 'DIF ESTIBAS',
       'OBSERVACION'
     ];
 
@@ -247,6 +262,8 @@ const DB_VIAJES = (() => {
 
       return [
         v.fecha,
+        v.numero_viaje || '',
+        auxMap[v.auxiliar_id] || '',
         condMap[v.conductor_id] || '',
         v.placa,
         v.remolque || '',
