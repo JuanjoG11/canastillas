@@ -328,31 +328,97 @@ const UI_VIAJES = (() => {
       // Tabla
       const tbody = document.getElementById('viajes-tbody');
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="17" class="text-center text-muted" style="padding:2rem">No hay viajes para mostrar</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:2.5rem">No hay viajes para mostrar</td></tr>';
       } else {
         tbody.innerHTML = filtered.map(v => {
-          const difG = v.ret_grandes  !== null ? v.ret_grandes  - v.desp_grandes  : '—';
-          const difP = v.ret_pequenas !== null ? v.ret_pequenas - v.desp_pequenas : '—';
-          const difE = v.ret_estibas  !== null ? v.ret_estibas  - v.desp_estibas  : '—';
-          const hasDif = difG !== '—';
+          // Despacho total y desglose
+          const totD = (v.desp_grandes || 0) + (v.desp_pequenas || 0) + (v.desp_estibas || 0);
+          const pD = [];
+          if (v.desp_grandes)  pD.push(`${v.desp_grandes}G`);
+          if (v.desp_pequenas) pD.push(`${v.desp_pequenas}P`);
+          if (v.desp_estibas)  pD.push(`${v.desp_estibas}E`);
+          const descD = pD.length > 0 ? pD.join(' · ') : '0';
+
+          // Retorno
+          let retHtml = '';
+          if (v.ret_grandes === null) {
+            retHtml = `<span class="pill-pend">⏳ En ruta</span>`;
+          } else {
+            const totR = (v.ret_grandes || 0) + (v.ret_pequenas || 0) + (v.ret_estibas || 0);
+            const pR = [];
+            if (v.ret_grandes)  pR.push(`${v.ret_grandes}G`);
+            if (v.ret_pequenas) pR.push(`${v.ret_pequenas}P`);
+            if (v.ret_estibas)  pR.push(`${v.ret_estibas}E`);
+            const descR = pR.length > 0 ? pR.join(' · ') : '0';
+            retHtml = `<div class="pill-ret">
+              <span style="font-size:1rem;font-weight:900;color:#15803D">${totR}</span>
+              <span style="font-size:.78rem;font-weight:600;color:#166534">(${descR})</span>
+            </div>`;
+          }
+
+          // Diferencia
+          let difHtml = '';
+          if (v.ret_grandes === null) {
+            difHtml = `<span class="text-muted" style="font-size:.9rem">—</span>`;
+          } else {
+            const difG = v.ret_grandes - v.desp_grandes;
+            const difP = v.ret_pequenas - v.desp_pequenas;
+            const difE = v.ret_estibas - v.desp_estibas;
+            const difTot = difG + difP + difE;
+            const hayDif = difG !== 0 || difP !== 0 || difE !== 0;
+
+            if (!hayDif) {
+              difHtml = `<span class="badge-dif-exact">✅ Exacto (0)</span>`;
+            } else {
+              const pDif = [];
+              if (difG !== 0) pDif.push(`${difG > 0 ? '+' : ''}${difG}G`);
+              if (difP !== 0) pDif.push(`${difP > 0 ? '+' : ''}${difP}P`);
+              if (difE !== 0) pDif.push(`${difE > 0 ? '+' : ''}${difE}E`);
+              const descDif = pDif.join(' · ');
+
+              if (difTot < 0) {
+                difHtml = `<div class="badge-dif-neg">
+                  <span style="font-size:1.05rem;font-weight:900">${difTot}</span>
+                  <span style="font-size:.78rem;font-weight:700">(${descDif})</span>
+                </div>`;
+              } else if (difTot > 0) {
+                difHtml = `<div class="badge-dif-pos">
+                  <span style="font-size:1.05rem;font-weight:900">+${difTot}</span>
+                  <span style="font-size:.78rem;font-weight:700">(${descDif})</span>
+                </div>`;
+              } else {
+                difHtml = `<div class="badge-dif-cruzado">
+                  <span style="font-size:.9rem;font-weight:900">⚠️ 0</span>
+                  <span style="font-size:.78rem;font-weight:700">(${descDif})</span>
+                </div>`;
+              }
+            }
+          }
+
+          const condNom = condMap[v.conductor_id] || '—';
+          const auxNom  = auxMap[v.auxiliar_id] || '—';
 
           return `<tr class="viaje-row">
-            <td>${formatFecha(v.fecha)}</td>
-            <td class="td-num-viaje">${UI.escapeHtml(v.numero_viaje)}</td>
-            <td title="${UI.escapeHtml(condMap[v.conductor_id]||'')}">${abrevNombre(condMap[v.conductor_id]||'')}</td>
-            <td title="${UI.escapeHtml(auxMap[v.auxiliar_id]||'')}">${abrevNombre(auxMap[v.auxiliar_id]||'')}</td>
-            <td>${UI.escapeHtml(v.numero_factura||'—')}</td>
-            <td class="td-num">${v.desp_grandes}</td>
-            <td class="td-num">${v.desp_pequenas}</td>
-            <td class="td-num">${v.desp_estibas}</td>
-            <td class="td-num">${v.ret_grandes  !== null ? v.ret_grandes  : '—'}</td>
-            <td class="td-num">${v.ret_pequenas !== null ? v.ret_pequenas : '—'}</td>
-            <td class="td-num">${v.ret_estibas  !== null ? v.ret_estibas  : '—'}</td>
-            <td class="td-num ${hasDif && difG < 0 ? 'td-num-neg' : hasDif && difG > 0 ? 'td-num-pos' : ''}">${hasDif && difG > 0 ? '+' : ''}${difG}</td>
-            <td class="td-num ${hasDif && difP < 0 ? 'td-num-neg' : hasDif && difP > 0 ? 'td-num-pos' : ''}">${hasDif && difP > 0 ? '+' : ''}${difP}</td>
-            <td class="td-num ${hasDif && difE < 0 ? 'td-num-neg' : hasDif && difE > 0 ? 'td-num-pos' : ''}">${hasDif && difE > 0 ? '+' : ''}${difE}</td>
+            <td>
+              <div style="font-weight:900;color:var(--gray-900);font-size:.95rem">${UI.escapeHtml(v.numero_viaje)}</div>
+              <div style="font-size:.78rem;color:var(--gray-500);margin-top:2px">📅 ${formatFecha(v.fecha)}</div>
+            </td>
+            <td>
+              <div style="font-weight:700;color:var(--gray-800);font-size:.9rem">${UI.escapeHtml(condNom)}</div>
+              <div style="font-size:.78rem;color:var(--gray-500);margin-top:2px">
+                👷 ${UI.escapeHtml(auxNom)}${v.zona_id ? ` · <strong style="color:var(--brand)">📍 ${UI.escapeHtml(v.zona_id)}</strong>` : ''}
+              </div>
+            </td>
+            <td>
+              <div class="pill-desp">
+                <span style="font-size:1rem;font-weight:900;color:var(--gray-900)">${totD}</span>
+                <span style="font-size:.78rem;font-weight:600;color:var(--gray-600)">(${descD})</span>
+              </div>
+            </td>
+            <td>${retHtml}</td>
+            <td>${difHtml}</td>
             <td><span class="badge ${ESTADOS_BADGE[v.estado]||'badge-gray'}">${ESTADOS_LABEL[v.estado]}</span></td>
-            <td class="td-acc" style="text-align:center">
+            <td class="td-acc" style="text-align:center;white-space:nowrap">
               <button class="btn-accion btn-ver" onclick="APP.verDetalleViaje('${v.id}')" title="Ver detalle">👁</button>
               ${v.firma_despacho_url ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_despacho_url}','Firma Despacho')" title="Firma despacho">📤🖊</button>` : ''}
               ${v.firma_retorno_url  ? `<button class="btn-accion btn-firma-tbl" onclick="APP.verFirmaViaje('${v.firma_retorno_url}','Firma Retorno')" title="Firma retorno">📥🖊</button>` : ''}
@@ -406,14 +472,11 @@ const UI_VIAJES = (() => {
               Registrar retorno
             </button>
           </div>
-          <div class="retorno-desp">
-            <strong>Despachado:</strong>
-            ${v.desp_grandes}G · ${v.desp_pequenas}P · ${v.desp_estibas}E
-            <span class="text-muted text-xs">(total: ${total})</span>
+          <div class="retorno-desp" style="color:var(--gray-600);font-size:.8125rem;display:flex;align-items:center;gap:.35rem">
+            <span>🔒</span> <span><strong>Conteo a ciegas:</strong> Cantidades ocultas para verificación en descarga</span>
           </div>
           <div class="retorno-meta text-muted text-sm">
             🧑‍✈️ ${condMap[v.conductor_id]||'—'} · 👷 ${auxMap[v.auxiliar_id]||'—'}
-            ${v.numero_factura ? ` · 🧾 ${UI.escapeHtml(v.numero_factura)}` : ''}
           </div>
         </div>`;
       }).join('');

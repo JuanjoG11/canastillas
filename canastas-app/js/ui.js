@@ -50,6 +50,39 @@ const UI = (() => {
     overlay.addEventListener('click', e => { if (e.target === overlay) close(); }, { once: true });
   }
 
+  function confirmModal({ title, body, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', confirmClass = 'btn btn-primary' }) {
+    return new Promise((resolve) => {
+      const overlay   = document.getElementById('modal-overlay');
+      const titleEl   = document.getElementById('modal-title');
+      const bodyEl    = document.getElementById('modal-body');
+      const confirmEl = document.getElementById('modal-confirm');
+      const cancelEl  = document.getElementById('modal-cancel');
+
+      titleEl.innerHTML     = title;
+      bodyEl.innerHTML      = body;
+      confirmEl.textContent = confirmLabel;
+      cancelEl.textContent  = cancelLabel;
+      confirmEl.className   = confirmClass;
+      cancelEl.style.display = cancelLabel ? '' : 'none';
+      overlay.classList.remove('hidden');
+
+      const cleanup = () => {
+        overlay.classList.add('hidden');
+        confirmEl.removeEventListener('click', onOk);
+        cancelEl.removeEventListener('click', onCancel);
+        overlay.removeEventListener('click', onOverlay);
+      };
+
+      const onOk = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+      const onOverlay = (e) => { if (e.target === overlay) { cleanup(); resolve(false); } };
+
+      confirmEl.addEventListener('click', onOk);
+      cancelEl.addEventListener('click', onCancel);
+      overlay.addEventListener('click', onOverlay);
+    });
+  }
+
   function closeModal() {
     document.getElementById('modal-overlay')?.classList.add('hidden');
   }
@@ -97,7 +130,6 @@ const UI = (() => {
         let difTotal = 0;
         cerrados.forEach(v => {
           difTotal += ((v.ret_grandes  || 0) - v.desp_grandes);
-          difTotal += ((v.ret_medianas || 0) - (v.desp_medianas || 0));
           difTotal += ((v.ret_pequenas || 0) - v.desp_pequenas);
           difTotal += ((v.ret_estibas  || 0) - v.desp_estibas);
         });
@@ -254,14 +286,13 @@ const UI = (() => {
       const cerrados  = viajesAux.filter(v => v.estado === 'cerrado');
       const pendientes = viajesAux.filter(v => v.estado === 'abierto');
 
-      let difG = 0, difM = 0, difP = 0, difE = 0;
+      let difG = 0, difP = 0, difE = 0;
       cerrados.forEach(v => {
         difG += ((v.ret_grandes  || 0) - v.desp_grandes);
-        difM += ((v.ret_medianas || 0) - (v.desp_medianas || 0));
         difP += ((v.ret_pequenas || 0) - v.desp_pequenas);
         difE += ((v.ret_estibas  || 0) - v.desp_estibas);
       });
-      const difTotal = difG + difM + difP + difE;
+      const difTotal = difG + difP + difE;
 
       const maxDias = pendientes.length > 0
         ? Math.max(...pendientes.map(v => Math.floor((Date.now() - new Date(v.fecha)) / 86400000)))
@@ -304,8 +335,8 @@ const UI = (() => {
       // ── Detalle de diferencias por tipo ──────────────────────────────
       if (cerrados.length > 0) {
         statsHtml += `
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.375rem;margin-bottom:1rem">
-            ${[['G',difG],['M',difM],['P',difP],['E',difE]].map(([l,d]) => `
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:1rem">
+            ${[['G',difG],['P',difP],['E',difE]].map(([l,d]) => `
               <div style="background:${d<0?'var(--danger-light)':d>0?'var(--success-light)':'var(--gray-50)'};
                 border-radius:var(--radius-xs);padding:.375rem .25rem;text-align:center;
                 border:1px solid ${d<0?'#FECACA':d>0?'#BBF7D0':'var(--border)'}">
@@ -332,10 +363,9 @@ const UI = (() => {
 
         viajesAux.forEach(v => {
           const dG = v.ret_grandes  !== null ? v.ret_grandes  - v.desp_grandes  : null;
-          const dM = v.ret_medianas !== null ? v.ret_medianas - (v.desp_medianas || 0) : null;
           const dP = v.ret_pequenas !== null ? v.ret_pequenas - v.desp_pequenas : null;
           const dE = v.ret_estibas  !== null ? v.ret_estibas  - v.desp_estibas  : null;
-          const dTot = dG !== null ? dG + (dM || 0) + dP + dE : null;
+          const dTot = dG !== null ? dG + dP + dE : null;
 
           const iconClass = v.estado === 'cerrado' ? 't-cerrado'
             : v.estado === 'anulado' ? 't-anulado' : 't-pendiente';
@@ -354,7 +384,7 @@ const UI = (() => {
           let difPills = '';
           if (dG !== null) {
             difPills = `<div class="tl-dif-row">
-              ${[['G',dG],['M',dM],['P',dP],['E',dE]].map(([l,d]) =>
+              ${[['G',dG],['P',dP],['E',dE]].map(([l,d]) =>
                 `<span class="tl-dif-pill ${d < 0 ? 'neg' : d > 0 ? 'ok' : 'zero'}">${l}: ${d > 0 ? '+' : ''}${d}</span>`
               ).join('')}
               ${dTot !== 0 ? `<span class="tl-dif-pill ${dTot < 0 ? 'neg' : 'ok'}" style="font-weight:800">Total: ${dTot > 0 ? '+' : ''}${dTot}</span>` : ''}
@@ -367,9 +397,9 @@ const UI = (() => {
               <div class="aux-tl-top">
                 <span class="aux-tl-tipo">${escapeHtml(v.numero_viaje)} · ${escapeHtml(v.placa)} ${statusBadge}</span>
               </div>
-              <div class="aux-tl-ref">📤 ${v.desp_grandes}G·${v.desp_medianas || 0}M·${v.desp_pequenas}P·${v.desp_estibas}E</div>
+              <div class="aux-tl-ref">📤 ${v.desp_grandes}G·${v.desp_pequenas}P·${v.desp_estibas}E</div>
               ${v.ret_grandes !== null
-                ? `<div class="aux-tl-ref">📥 ${v.ret_grandes}G·${v.ret_medianas !== null ? v.ret_medianas : 0}M·${v.ret_pequenas}P·${v.ret_estibas}E</div>
+                ? `<div class="aux-tl-ref">📥 ${v.ret_grandes}G·${v.ret_pequenas}P·${v.ret_estibas}E</div>
                    ${difPills}`
                 : ''}
               <div class="aux-tl-meta">
@@ -455,7 +485,7 @@ const UI = (() => {
   }
 
   return {
-    toast, showModal, closeModal, setLoading, showSection,
+    toast, showModal, confirmModal, closeModal, setLoading, showSection,
     renderAuxiliares, showHistorialAuxiliar, escapeHtml,
   };
 })();

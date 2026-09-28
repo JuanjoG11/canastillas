@@ -302,11 +302,6 @@ const APP = (() => {
         </div>
 
         <div class="form-group" style="margin-bottom:1.25rem">
-          <label style="font-size:.9rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;display:block">🧾 # Factura</label>
-          <input id="desp-factura" class="form-control" type="text" placeholder="Número de factura (opcional)" style="font-size:1rem;padding:.75rem 1rem" />
-        </div>
-
-        <div class="form-group" style="margin-bottom:1.25rem">
           <label style="font-size:.9rem;font-weight:700;color:var(--gray-700);margin-bottom:.5rem;display:block">📍 Zona (batch)</label>
           <select id="desp-zona" class="form-control" style="font-size:1rem;padding:.75rem 1rem;min-height:52px">
             <option value="">— Sin zona asignada —</option>
@@ -422,7 +417,7 @@ const APP = (() => {
         const viaje = await DB_VIAJES.registrarViaje({
           conductor_id, auxiliar_id, zona_id,
           placa: '', remolque: '',
-          numero_factura: document.getElementById('desp-factura').value.trim(),
+          numero_factura: null,
           desp_grandes:   document.getElementById('desp-grandes').value,
           desp_medianas:  '0',
           desp_pequenas:  document.getElementById('desp-pequenas').value,
@@ -593,6 +588,7 @@ const APP = (() => {
   // FORMULARIO RETORNO
   // ═══════════════════════════════════════════════════════════════════════════
 
+
   async function abrirFormularioRetorno(viajeId) {
     const viaje = await DB_VIAJES.getViajeById(viajeId);
     if (!viaje) return;
@@ -605,87 +601,221 @@ const APP = (() => {
     const auxNombre  = auxiliares.find(a => a.id === viaje.auxiliar_id)?.nombre || '—';
 
     const retFields = [
-      ['ret-grandes',  'Grandes',  viaje.desp_grandes],
-      ['ret-pequenas', 'Pequeñas', viaje.desp_pequenas],
-      ['ret-estibas',  'Estibas',  viaje.desp_estibas],
+      ['ret-grandes',  'Grandes',  '🧺'],
+      ['ret-pequenas', 'Pequeñas', '🧺'],
+      ['ret-estibas',  'Estibas',  '🪵'],
     ];
 
     openDrawer('📥 Registrar Retorno', `
       <div style="background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem 1.125rem;margin-bottom:1.25rem">
         <div style="font-size:1.0625rem;font-weight:800;color:var(--gray-800);margin-bottom:.25rem">${UI.escapeHtml(viaje.numero_viaje)}</div>
         <div style="font-size:.8125rem;color:var(--gray-500)">${UI.escapeHtml(condNombre)} · ${UI.escapeHtml(auxNombre)}</div>
-        <div style="margin-top:.625rem;display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;text-align:center">
-          ${[['Grandes', viaje.desp_grandes], ['Pequeñas', viaje.desp_pequenas], ['Estibas', viaje.desp_estibas]].map(([l, v]) => `
-            <div style="background:var(--brand-light);border-radius:var(--radius-xs);padding:.375rem .25rem">
-              <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;color:var(--brand)">${l}</div>
-              <div style="font-size:1.25rem;font-weight:800;color:var(--brand)">${v}</div>
-              <div style="font-size:.6rem;color:var(--gray-500)">desp.</div>
-            </div>`).join('')}
+        ${viaje.placa ? `<div style="font-size:.8125rem;font-weight:600;color:var(--gray-700);margin-top:.25rem">🚛 Placa: ${UI.escapeHtml(viaje.placa)}</div>` : ''}
+        <div style="margin-top:.625rem;background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;border-radius:var(--radius-xs);padding:.5rem .75rem;font-size:.75rem;display:flex;align-items:center;gap:.4rem">
+          <span>🔒</span>
+          <span><strong>Conteo a ciegas:</strong> Ingresa el material contado físicamente al descargar.</span>
         </div>
       </div>
 
       <form id="form-retorno" novalidate>
-        <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--success);margin-bottom:.875rem">📥 Material retornado</div>
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.875rem;margin-bottom:1rem">
-          ${retFields.map(([id, label, val]) => `
-            <div>
-              <div class="spinbox-label">${label}</div>
-              <div class="spinbox">
+        <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--success);margin-bottom:.875rem">📥 Material retornado (físico)</div>
+        <div style="display:flex;flex-direction:column;gap:.75rem;margin-bottom:1.25rem">
+          ${retFields.map(([id, label, icon]) => `
+            <div style="background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.75rem 1rem;display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:.6rem">
+                <span style="font-size:1.4rem">${icon}</span>
+                <div>
+                  <div style="font-size:.95rem;font-weight:800;color:var(--gray-800)">${label}</div>
+                  <div style="font-size:.75rem;color:var(--gray-500)">Unidades recibidas</div>
+                </div>
+              </div>
+              <div class="spinbox" style="margin:0">
                 <button type="button" class="spinbox-btn minus" data-target="${id}">−</button>
-                <input id="${id}" type="number" min="0" value="${val}" style="color:var(--success)" />
+                <input id="${id}" type="number" min="0" value="" placeholder="0" style="color:var(--success);font-weight:800;font-size:1.2rem;width:75px;text-align:center" />
                 <button type="button" class="spinbox-btn plus" data-target="${id}">+</button>
               </div>
             </div>`).join('')}
         </div>
-        <div id="dif-preview" class="dif-preview"></div>
-        <button type="submit" class="btn btn-success btn-block" style="padding:1rem;font-size:1.0625rem;font-weight:800;border-radius:var(--radius-sm)">
+        <div id="ret-live-alert" style="margin-bottom:1.25rem">
+          <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:var(--radius-sm);padding:.85rem;text-align:center;color:var(--gray-500);font-size:.8125rem">
+            🔒 <strong>Conteo a ciegas activo:</strong> Ingresa las cantidades contadas físicamente en descarga.
+          </div>
+        </div>
+        <button id="btn-submit-retorno" type="submit" class="btn btn-secondary btn-block" style="padding:1rem;font-size:1.0625rem;font-weight:800;border-radius:var(--radius-sm)">
           ✓ Confirmar Retorno
         </button>
       </form>
     `);
 
-    // Spinboxes retorno
-    const campos = ['ret-grandes', 'ret-pequenas', 'ret-estibas'];
-    const desp   = [viaje.desp_grandes, viaje.desp_pequenas, viaje.desp_estibas];
-    const labels = ['Grandes', 'Pequeñas', 'Estibas'];
+    const liveAlertEl = document.getElementById('ret-live-alert');
+    const submitBtn   = document.getElementById('btn-submit-retorno');
 
+    function actualizarAlertaRetorno() {
+      const gInput = document.getElementById('ret-grandes');
+      const pInput = document.getElementById('ret-pequenas');
+      const eInput = document.getElementById('ret-estibas');
+      if (!gInput || !pInput || !eInput || !liveAlertEl || !submitBtn) return;
+
+      const gVal = gInput.value.trim();
+      const pVal = pInput.value.trim();
+      const eVal = eInput.value.trim();
+
+      if (gVal === '' && pVal === '' && eVal === '') {
+        liveAlertEl.innerHTML = `
+          <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:var(--radius-sm);padding:.85rem;text-align:center;color:var(--gray-500);font-size:.8125rem">
+            🔒 <strong>Conteo a ciegas activo:</strong> Ingresa las cantidades contadas físicamente en descarga.
+          </div>
+        `;
+        submitBtn.textContent = '✓ Confirmar Retorno';
+        submitBtn.className = 'btn btn-secondary btn-block';
+        return;
+      }
+
+      const retG = parseInt(gVal || '0', 10);
+      const retP = parseInt(pVal || '0', 10);
+      const retE = parseInt(eVal || '0', 10);
+
+      const difG = retG - (viaje.desp_grandes || 0);
+      const difP = retP - (viaje.desp_pequenas || 0);
+      const difE = retE - (viaje.desp_estibas || 0);
+      const difTotal = difG + difP + difE;
+      const hayDiferencia = difG !== 0 || difP !== 0 || difE !== 0;
+
+      if (!hayDiferencia) {
+        liveAlertEl.innerHTML = `
+          <div style="background:#F0FDF4;border:2px solid #22C55E;border-radius:var(--radius-sm);padding:.875rem 1rem;display:flex;align-items:center;gap:.75rem;animation:fadeIn .15s ease">
+            <span style="font-size:1.6rem;line-height:1">✅</span>
+            <div>
+              <div style="font-size:.95rem;font-weight:900;color:#15803D">¡Conteo Exacto!</div>
+              <div style="font-size:.8rem;color:#166534">Coincide 100% con lo despachado.</div>
+            </div>
+          </div>
+        `;
+        submitBtn.textContent = '✓ Confirmar Retorno Exacto';
+        submitBtn.className = 'btn btn-success btn-block';
+      } else {
+        const faltan = difTotal < 0;
+        liveAlertEl.innerHTML = `
+          <div style="background:#FEF2F2;border:2px solid #EF4444;border-radius:var(--radius-sm);padding:1rem;box-shadow:0 4px 12px rgba(239,68,68,.12);animation:fadeIn .15s ease">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;padding-bottom:.5rem;border-bottom:1.5px dashed #FCA5A5">
+              <div style="display:flex;align-items:center;gap:.5rem">
+                <span style="font-size:1.5rem;line-height:1">🚨</span>
+                <div style="font-size:1rem;font-weight:900;color:#991B1B">
+                  ALERTA: Diferencia de ${difTotal > 0 ? '+' : ''}${difTotal}
+                </div>
+              </div>
+              <span style="background:${faltan ? '#DC2626' : '#D97706'};color:#fff;font-size:.72rem;font-weight:900;padding:.25rem .6rem;border-radius:5px;text-transform:uppercase;letter-spacing:.04em">
+                ${faltan ? 'Faltante (' + difTotal + ')' : 'Sobrante (+' + difTotal + ')'}
+              </span>
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem">
+              ${difG !== 0 ? `<span style="background:${difG<0?'#FEE2E2':'#DCFCE7'};color:${difG<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difG<0?'#FCA5A5':'#86EFAC'}">Grandes: ${difG > 0 ? '+' : ''}${difG} ${difG < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
+              ${difP !== 0 ? `<span style="background:${difP<0?'#FEE2E2':'#DCFCE7'};color:${difP<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difP<0?'#FCA5A5':'#86EFAC'}">Pequeñas: ${difP > 0 ? '+' : ''}${difP} ${difP < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
+              ${difE !== 0 ? `<span style="background:${difE<0?'#FEE2E2':'#DCFCE7'};color:${difE<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difE<0?'#FCA5A5':'#86EFAC'}">Estibas: ${difE > 0 ? '+' : ''}${difE} ${difE < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
+            </div>
+            <div style="font-size:.78rem;color:#7F1D1D;line-height:1.4">
+              ⚠️ <strong>Atención:</strong> El conteo físico no cuadra con el despacho. Revisa el vehículo o confirma para registrar la novedad.
+            </div>
+          </div>
+        `;
+        submitBtn.textContent = `⚠️ Confirmar con Diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`;
+        submitBtn.className = 'btn btn-warning btn-block';
+      }
+    }
+
+    // Spinboxes retorno
     document.querySelectorAll('#drawer-body .spinbox-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const inp = document.getElementById(btn.dataset.target);
         if (!inp) return;
         const v = parseInt(inp.value || '0', 10);
         inp.value = btn.classList.contains('plus') ? v + 1 : Math.max(0, v - 1);
-        updatePreview();
+        actualizarAlertaRetorno();
       });
     });
 
-    const updatePreview = () => {
-      const el = document.getElementById('dif-preview');
-      if (!el) return;
-      const items = campos.map((id, i) => {
-        const ret = parseInt(document.getElementById(id)?.value || '0', 10);
-        const dif = desp[i] - ret;
-        // dif > 0 = faltan = ROJO, dif < 0 = sobran = VERDE
-        return `<span class="${dif > 0 ? 'neg' : dif < 0 ? 'pos' : ''}">${labels[i]}: ${dif > 0 ? '+' : ''}${dif}</span>`;
-      });
-      el.innerHTML = `<strong>Diferencia:</strong> ${items.join(' · ')}`;
-    };
-
-    campos.forEach(id => {
-      document.getElementById(id)?.addEventListener('input', updatePreview);
+    ['ret-grandes', 'ret-pequenas', 'ret-estibas'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', actualizarAlertaRetorno);
     });
-    updatePreview();
 
     document.getElementById('form-retorno')?.addEventListener('submit', async e => {
       e.preventDefault();
+
+      const retG = parseInt(document.getElementById('ret-grandes')?.value || '0', 10);
+      const retP = parseInt(document.getElementById('ret-pequenas')?.value || '0', 10);
+      const retE = parseInt(document.getElementById('ret-estibas')?.value || '0', 10);
+
+      // Calcular diferencias silenciosamente contra lo despachado (SOLO Grandes, Pequeñas, Estibas)
+      const difG = retG - (viaje.desp_grandes || 0);
+      const difP = retP - (viaje.desp_pequenas || 0);
+      const difE = retE - (viaje.desp_estibas || 0);
+      const difTotal = difG + difP + difE;
+      const hayDiferencia = difG !== 0 || difP !== 0 || difE !== 0;
+
+      // Si hay diferencia, avisar silenciosamente al usuario mediante modal premium
+      if (hayDiferencia) {
+        const partes = [];
+        if (difG !== 0) partes.push({ label: 'Grandes', dif: difG });
+        if (difP !== 0) partes.push({ label: 'Pequeñas', dif: difP });
+        if (difE !== 0) partes.push({ label: 'Estibas', dif: difE });
+
+        const modalTitle = `
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <span style="font-size:1.6rem;line-height:1">⚠️</span>
+            <div style="text-align:left">
+              <div style="font-size:1.15rem;font-weight:900;color:var(--gray-900);line-height:1.2">Diferencia en el Retorno</div>
+              <div style="font-size:.78rem;font-weight:600;color:var(--gray-500);margin-top:.15rem">Verificación de descarga a ciegas</div>
+            </div>
+          </div>
+        `;
+
+        const modalBody = `
+          <div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:var(--radius-sm);padding:1rem;margin:.5rem 0 1.25rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px dashed #FCD34D">
+              <span style="font-size:.8rem;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.05em">Diferencia neta</span>
+              <span style="font-size:1.25rem;font-weight:900;color:${difTotal < 0 ? 'var(--danger)' : 'var(--success)'}">
+                ${difTotal > 0 ? '+' : ''}${difTotal} canastilla${Math.abs(difTotal) !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(${partes.length}, 1fr);gap:.375rem;text-align:center">
+              ${partes.map(p => `
+                <div style="background:${p.dif < 0 ? '#FEE2E2' : p.dif > 0 ? '#DCFCE7' : 'var(--white)'};
+                            border:1px solid ${p.dif < 0 ? '#FECACA' : p.dif > 0 ? '#BBF7D0' : '#E2E8F0'};
+                            border-radius:var(--radius-xs);padding:.45rem .25rem">
+                  <div style="font-size:.65rem;font-weight:800;color:var(--gray-500);text-transform:uppercase">${p.label}</div>
+                  <div style="font-size:1.15rem;font-weight:900;color:${p.dif < 0 ? 'var(--danger)' : p.dif > 0 ? 'var(--success)' : 'var(--gray-700)'}">
+                    ${p.dif > 0 ? '+' : ''}${p.dif}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div style="background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-xs);padding:.75rem .9rem;font-size:.84rem;color:var(--gray-600);line-height:1.5">
+            El conteo que ingresaste tiene descuadre con el despacho. Puedes <strong>recontar el vehículo</strong> si consideras que hubo una equivocación, o <strong>confirmar</strong> para dejar registrada la diferencia y pasar a la firma.
+          </div>
+        `;
+
+        const confirmar = await UI.confirmModal({
+          title: modalTitle,
+          body: modalBody,
+          confirmLabel: '✓ Confirmar con diferencia',
+          cancelLabel: '🔍 Recontar material',
+          confirmClass: 'btn btn-warning',
+        });
+
+        if (!confirmar) {
+          return;
+        }
+      }
+
       UI.setLoading(true);
       try {
         const viajeAct = await DB_VIAJES.registrarRetorno(
           viajeId,
-          document.getElementById('ret-grandes').value,
-          '0',
-          document.getElementById('ret-pequenas').value,
-          document.getElementById('ret-estibas').value,
+          retG,
+          0,
+          retP,
+          retE,
         );
         DB_VIAJES.invalidateCache();
         closeDrawer();
@@ -697,9 +827,17 @@ const APP = (() => {
         });
         if (firmaUrl) {
           await DB_VIAJES.guardarFirmaRetorno(viajeAct.id, firmaUrl);
-          UI.toast('✓ Retorno registrado y firmado', 'success');
+          if (difTotal !== 0) {
+            UI.toast(`⚠️ Retorno registrado y firmado con diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`, 'warning');
+          } else {
+            UI.toast('✓ Retorno registrado y firmado exacto', 'success');
+          }
         } else {
-          UI.toast('✓ Retorno registrado sin firma', 'success');
+          if (difTotal !== 0) {
+            UI.toast(`⚠️ Retorno registrado sin firma con diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`, 'warning');
+          } else {
+            UI.toast('✓ Retorno registrado exacto sin firma', 'success');
+          }
         }
         await navigateTo('retornos');
       } catch (err) {
@@ -725,7 +863,6 @@ const APP = (() => {
     const auxNombre  = auxiliares.find(a => a.id === viaje.auxiliar_id)?.nombre || '—';
 
     const difG = viaje.ret_grandes  !== null ? viaje.ret_grandes  - viaje.desp_grandes  : null;
-    const difM = viaje.ret_medianas !== null ? viaje.ret_medianas - (viaje.desp_medianas || 0) : null;
     const difP = viaje.ret_pequenas !== null ? viaje.ret_pequenas - viaje.desp_pequenas : null;
     const difE = viaje.ret_estibas  !== null ? viaje.ret_estibas  - viaje.desp_estibas  : null;
 
@@ -735,8 +872,8 @@ const APP = (() => {
     const LABEL = { abierto: 'Pendiente', cerrado: 'Cerrado', anulado: 'Anulado' };
 
     const retBlock = viaje.ret_grandes !== null
-      ? `<div class="detalle-row"><span>Retorno:</span><span>${viaje.ret_grandes}G · ${viaje.ret_medianas !== null ? viaje.ret_medianas : 0}M · ${viaje.ret_pequenas}P · ${viaje.ret_estibas}E</span></div>
-         <div class="detalle-row"><span>Diferencia:</span><span>${fmt(difG)}G · ${fmt(difM)}M · ${fmt(difP)}P · ${fmt(difE)}E</span></div>`
+      ? `<div class="detalle-row"><span>Retorno:</span><span>${viaje.ret_grandes}G · ${viaje.ret_pequenas}P · ${viaje.ret_estibas}E</span></div>
+         <div class="detalle-row"><span>Diferencia:</span><span>${fmt(difG)}G · ${fmt(difP)}P · ${fmt(difE)}E</span></div>`
       : `<div class="field-info">Sin retorno registrado.</div>`;
 
     openDrawer(`🚛 ${UI.escapeHtml(viaje.numero_viaje)}`, `
@@ -745,8 +882,7 @@ const APP = (() => {
         <div class="detalle-row"><span>Conductor:</span><span>${UI.escapeHtml(condNombre)}</span></div>
         <div class="detalle-row"><span>Auxiliar:</span><span>${UI.escapeHtml(auxNombre)}</span></div>
         ${viaje.zona_id ? `<div class="detalle-row"><span>Zona:</span><span><strong>${UI.escapeHtml(viaje.zona_id)}</strong></span></div>` : ''}
-        ${viaje.numero_factura ? `<div class="detalle-row"><span># Factura:</span><span>${UI.escapeHtml(viaje.numero_factura)}</span></div>` : ''}
-        <div class="detalle-row"><span>Despachado:</span><span>${viaje.desp_grandes}G · ${viaje.desp_medianas || 0}M · ${viaje.desp_pequenas}P · ${viaje.desp_estibas}E</span></div>
+        <div class="detalle-row"><span>Despachado:</span><span>${viaje.desp_grandes}G · ${viaje.desp_pequenas}P · ${viaje.desp_estibas}E</span></div>
         ${retBlock}
         ${viaje.observaciones ? `<div class="detalle-row"><span>Obs:</span><span>${UI.escapeHtml(viaje.observaciones)}</span></div>` : ''}
         <div class="detalle-row"><span>Estado:</span><span><span class="badge ${BADGE[viaje.estado] || 'badge-gray'}">${LABEL[viaje.estado] || viaje.estado}</span></span></div>
@@ -773,11 +909,6 @@ const APP = (() => {
     openDrawer(`✏️ Editar ${UI.escapeHtml(viaje.numero_viaje)}`, `
       <div class="field-info" style="margin-bottom:1rem">Solo se pueden editar las cantidades mientras el viaje esté pendiente.</div>
       <form id="form-editar-viaje" novalidate>
-        <div class="form-group">
-          <label># Factura</label>
-          <input id="edit-factura" class="form-control" type="text" value="${UI.escapeHtml(viaje.numero_factura || '')}" />
-        </div>
-        <hr class="divider" />
         <div class="form-section-label">📤 Cantidades despachadas</div>
         <div class="form-row-4">
           ${[['edit-grandes','Grandes',viaje.desp_grandes],['edit-pequenas','Pequeñas',viaje.desp_pequenas],['edit-estibas','Estibas',viaje.desp_estibas]].map(([id,l,v]) =>
@@ -797,7 +928,7 @@ const APP = (() => {
       UI.setLoading(true);
       try {
         await DB_VIAJES.editarViaje(viajeId, {
-          numero_factura: document.getElementById('edit-factura').value.trim(),
+          numero_factura: null,
           desp_grandes:   parseInt(document.getElementById('edit-grandes').value) || 0,
           desp_medianas:  0,
           desp_pequenas:  parseInt(document.getElementById('edit-pequenas').value) || 0,
@@ -946,8 +1077,8 @@ const APP = (() => {
       const pendientes = viajes.filter(v => v.estado === 'abierto').length;
       let totDesp = 0, totRet = 0;
       viajes.forEach(v => {
-        totDesp += (v.desp_grandes||0)+(v.desp_medianas||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
-        if (v.ret_grandes !== null) totRet += (v.ret_grandes||0)+(v.ret_medianas||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
+        totDesp += (v.desp_grandes||0)+(v.desp_pequenas||0)+(v.desp_estibas||0);
+        if (v.ret_grandes !== null) totRet += (v.ret_grandes||0)+(v.ret_pequenas||0)+(v.ret_estibas||0);
       });
       const totDif = totRet - totDesp;
       document.getElementById('cond-drawer-chips').innerHTML =
@@ -964,7 +1095,6 @@ const APP = (() => {
       bodyEl.innerHTML = '<div class="aux-timeline">' + viajes.map(v => {
         const dias = Math.floor((Date.now() - new Date(v.fecha)) / 86400000);
         const dG = v.ret_grandes  !== null ? v.ret_grandes  - v.desp_grandes  : null;
-        const dM = v.ret_medianas !== null ? v.ret_medianas - (v.desp_medianas || 0) : null;
         const dP = v.ret_pequenas !== null ? v.ret_pequenas - v.desp_pequenas : null;
         const dE = v.ret_estibas  !== null ? v.ret_estibas  - v.desp_estibas  : null;
         const ic = v.estado === 'cerrado' ? 't-cerrado' : v.estado === 'anulado' ? 't-anulado' : 't-pendiente';
@@ -978,10 +1108,10 @@ const APP = (() => {
           <div class="aux-tl-icon ${ic}">${icon}</div>
           <div class="aux-tl-content">
             <div class="aux-tl-tipo">${UI.escapeHtml(v.numero_viaje)} · ${UI.escapeHtml(v.placa || '')} ${sb}</div>
-            <div class="aux-tl-ref">📤 ${v.desp_grandes}G·${v.desp_medianas || 0}M·${v.desp_pequenas}P·${v.desp_estibas}E</div>
-            ${dG !== null ? `<div class="aux-tl-ref">📥 ${v.ret_grandes}G·${v.ret_medianas !== null ? v.ret_medianas : 0}M·${v.ret_pequenas}P·${v.ret_estibas}E</div>
+            <div class="aux-tl-ref">📤 ${v.desp_grandes}G·${v.desp_pequenas}P·${v.desp_estibas}E</div>
+            ${dG !== null ? `<div class="aux-tl-ref">📥 ${v.ret_grandes}G·${v.ret_pequenas}P·${v.ret_estibas}E</div>
               <div class="tl-dif-row">
-                ${[[dG,'G'],[dM,'M'],[dP,'P'],[dE,'E']].map(([d,l]) =>
+                ${[[dG,'G'],[dP,'P'],[dE,'E']].map(([d,l]) =>
                   `<span class="tl-dif-pill ${d < 0 ? 'neg' : d > 0 ? 'ok' : 'zero'}">${l}: ${d > 0 ? '+' : ''}${d}</span>`
                 ).join('')}
               </div>` : ''}
@@ -1038,7 +1168,7 @@ const APP = (() => {
     try {
       await DB_VIAJES.setInventarioInicial(
         document.getElementById('inv-grandes').value,
-        document.getElementById('inv-medianas').value,
+        document.getElementById('inv-medianas')?.value || 0,
         document.getElementById('inv-pequenas').value,
         document.getElementById('inv-estibas').value,
       );
