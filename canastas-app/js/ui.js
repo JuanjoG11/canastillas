@@ -103,7 +103,7 @@ const UI = (() => {
   }
 
   // ─── Auxiliares: lista con tarjetas de alerta ──────────────────────────────
-  async function renderAuxiliares() {
+  async function renderAuxiliares(filtros = {}) {
     UI.setLoading(true);
     try {
       const [auxiliares, viajes] = await Promise.all([
@@ -120,9 +120,18 @@ const UI = (() => {
         return;
       }
 
+      // Filtrar viajes por rango de fechas si se proporcionó
+      let viajesFiltrados = viajes;
+      if (filtros.fechaDesde) {
+        viajesFiltrados = viajesFiltrados.filter(v => v.fecha >= filtros.fechaDesde);
+      }
+      if (filtros.fechaHasta) {
+        viajesFiltrados = viajesFiltrados.filter(v => v.fecha <= filtros.fechaHasta);
+      }
+
       // Calcular métricas por auxiliar
       const metricas = auxiliares.map(aux => {
-        const vAux      = viajes.filter(v => v.auxiliar_id === aux.id);
+        const vAux      = viajesFiltrados.filter(v => v.auxiliar_id === aux.id);
         const pendientes = vAux.filter(v => v.estado === 'abierto');
         const cerrados   = vAux.filter(v => v.estado === 'cerrado');
 
@@ -144,25 +153,54 @@ const UI = (() => {
         if (difTotal < -20 || maxDias > 3) nivel = 'crit';
         else if (difTotal < -5 || maxDias > 1 || pendientes.length > 0) nivel = 'warn';
 
+        const ultimoViaje = vAux.length > 0 ? vAux[0] : null;
+
         return { aux, difTotal, pendientes: pendientes.length, cerrados: cerrados.length,
                  totalViajes: vAux.length, maxDias, nivel, ultimoViaje };
       });
 
+      // Aplicar filtro por estado
+      let metricasFiltradas = metricas;
+      if (filtros.estado && filtros.estado !== 'todos') {
+        if (filtros.estado === 'inactivo') {
+          metricasFiltradas = metricasFiltradas.filter(m => !m.aux.activo);
+        } else {
+          metricasFiltradas = metricasFiltradas.filter(m => m.aux.activo && m.nivel === filtros.estado);
+        }
+      }
+
+      // Aplicar filtro de texto (nombre o cédula)
+      if (filtros.buscar) {
+        const q = filtros.buscar.toLowerCase().trim();
+        if (q) {
+          metricasFiltradas = metricasFiltradas.filter(m =>
+            m.aux.nombre.toLowerCase().includes(q) ||
+            (m.aux.cedula && m.aux.cedula.toLowerCase().includes(q))
+          );
+        }
+      }
+
       // Ordenar: crit → warn → ok, luego por mayor faltante
       const orden = { crit: 0, warn: 1, ok: 2 };
-      metricas.sort((a, b) => orden[a.nivel] - orden[b.nivel] || a.difTotal - b.difTotal);
+      metricasFiltradas.sort((a, b) => orden[a.nivel] - orden[b.nivel] || a.difTotal - b.difTotal);
 
       // ── Resumen de alertas ───────────────────────────────────────────────
       const nCrit = metricas.filter(m => m.nivel === 'crit').length;
       const nWarn = metricas.filter(m => m.nivel === 'warn').length;
       if (resumenEl) {
+        const filtroActivo = filtros.fechaDesde || filtros.fechaHasta ||
+          (filtros.estado && filtros.estado !== 'todos') || filtros.buscar;
+        const conteoTxt = filtroActivo
+          ? `<span style="font-size:.8rem;color:var(--gray-500);margin-left:.5rem">(${metricasFiltradas.length} de ${metricas.length})</span>`
+          : '';
+
         if (nCrit === 0 && nWarn === 0) {
           resumenEl.innerHTML = `
             <div style="display:inline-flex;align-items:center;gap:.5rem;background:var(--success-light);
               color:var(--success);border-radius:var(--radius-sm);padding:.5rem 1rem;
               font-size:.875rem;font-weight:600;border:1px solid #BBF7D0;margin-bottom:.5rem">
               ✅ Todos los auxiliares al día — sin diferencias pendientes
-            </div>`;
+            </div>${conteoTxt}`;
         } else {
           resumenEl.innerHTML = `
             <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;align-items:center">
@@ -170,6 +208,7 @@ const UI = (() => {
               ${nCrit > 0 ? `<span class="badge badge-red">🔴 ${nCrit} crítico${nCrit>1?'s':''}</span>` : ''}
               ${nWarn > 0 ? `<span class="badge badge-orange">🟡 ${nWarn} con alerta</span>` : ''}
               <span class="badge badge-green">🟢 ${metricas.filter(m=>m.nivel==='ok').length} ok</span>
+              ${conteoTxt}
             </div>`;
         }
       }
@@ -178,7 +217,13 @@ const UI = (() => {
       const stripeClass = { ok: 's-ok', warn: 's-warn', crit: 's-crit', gray: 's-gray' };
       const statClass   = { ok: 'stat-ok', warn: 'stat-warn', crit: 'stat-crit' };
 
-      listEl.innerHTML = metricas.map(m => {
+      if (metricasFiltradas.length === 0) {
+        listEl.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:2rem">No se encontraron auxiliares con los filtros aplicados</p>';
+        UI.setLoading(false);
+        return;
+      }
+
+      listEl.innerHTML = metricasFiltradas.map(m => {
         const a = m.aux;
         const safeName = escapeHtml(a.nombre).replace(/'/g, "\\'");
         const stripe   = a.activo ? stripeClass[m.nivel] : 's-gray';

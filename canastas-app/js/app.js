@@ -6,6 +6,7 @@
 const APP = (() => {
 
   let viajesFiltros = {};
+  let auxiliaresFiltros = {};
 
   // ═══════════════════════════════════════════════════════════════════════════
   // BOOTSTRAP
@@ -70,13 +71,9 @@ const APP = (() => {
       });
     });
 
-    // Búsqueda auxiliares
-    document.getElementById('search-auxiliares-input')?.addEventListener('input', e => {
-      const q = e.target.value.toLowerCase().trim();
-      document.querySelectorAll('#auxiliares-list .aux-card').forEach(c => {
-        c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    });
+    // Filtros auxiliares
+    document.getElementById('btn-af-filtrar')?.addEventListener('click', aplicarFiltrosAuxiliares);
+    document.getElementById('btn-af-limpiar')?.addEventListener('click', limpiarFiltrosAuxiliares);
 
     // Búsqueda clientes
     document.getElementById('btn-nuevo-cliente')?.addEventListener('click', abrirFormularioNuevoCliente);
@@ -173,7 +170,7 @@ const APP = (() => {
           break;
 
         case 'auxiliares':
-          await UI.renderAuxiliares();
+          await UI.renderAuxiliares(auxiliaresFiltros);
           break;
 
         case 'zonas':
@@ -1146,6 +1143,26 @@ const APP = (() => {
     await UI_VIAJES.renderViajes(viajesFiltros);
   }
 
+  // ─── Filtros auxiliares ──────────────────────────────────────────────────
+  async function aplicarFiltrosAuxiliares() {
+    auxiliaresFiltros = {
+      fechaDesde: document.getElementById('af-desde')?.value || null,
+      fechaHasta: document.getElementById('af-hasta')?.value || null,
+      estado:     document.getElementById('af-estado')?.value || 'todos',
+      buscar:     document.getElementById('af-buscar')?.value || null,
+    };
+    await UI.renderAuxiliares(auxiliaresFiltros);
+  }
+
+  async function limpiarFiltrosAuxiliares() {
+    auxiliaresFiltros = {};
+    ['af-desde', 'af-hasta', 'af-buscar'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const est = document.getElementById('af-estado'); if (est) est.value = 'todos';
+    await UI.renderAuxiliares({});
+  }
+
   async function limpiarFiltrosViajes() {
     viajesFiltros = {};
     const fields = ['vf-desde', 'vf-hasta'];
@@ -1315,7 +1332,7 @@ const APP = (() => {
         DB_CLIENTES.invalidateCache();
         closeDrawer();
         UI.toast('✓ Movimiento registrado', 'success');
-        await navigateTo('clientes-dashboard');
+        await navigateTo('clientes');
       } catch (err) { UI.toast(err.message, 'error'); }
       UI.setLoading(false);
     });

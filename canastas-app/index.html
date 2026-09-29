@@ -107,9 +107,6 @@
 
       <div class="sidebar-section">
         <div class="sidebar-label">Clientes</div>
-        <button class="nav-item" data-nav="clientes-dashboard">
-          <span class="nav-icon">📊</span> Estado General
-        </button>
         <button class="nav-item" data-nav="clientes">
           <span class="nav-icon">🏢</span> Clientes
         </button>
@@ -292,11 +289,41 @@
         <div class="section-header">
           <h2 class="section-title"><span class="section-icon">👷</span>Auxiliares</h2>
         </div>
-        <div id="aux-alertas-resumen" style="margin-bottom:1rem"></div>
-        <div class="form-group mb-2" style="max-width:400px">
-          <input id="search-auxiliares-input" class="form-control" type="text"
-            placeholder="🔍 Buscar por nombre o cédula..." autocomplete="off" />
+
+        <!-- Filtros -->
+        <div class="card" style="margin-bottom:1rem;padding:1rem 1.125rem">
+          <div class="viajes-filters">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Desde</label>
+              <input id="af-desde" class="form-control" type="date" />
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Hasta</label>
+              <input id="af-hasta" class="form-control" type="date" />
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Estado</label>
+              <select id="af-estado" class="form-control">
+                <option value="todos">Todos</option>
+                <option value="ok">✅ Ok</option>
+                <option value="warn">🟡 Con alerta</option>
+                <option value="crit">🔴 Crítico</option>
+                <option value="inactivo">⬜ Inactivo</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Nombre o cédula</label>
+              <input id="af-buscar" class="form-control" type="text"
+                placeholder="🔍 Buscar..." autocomplete="off" />
+            </div>
+          </div>
+          <div style="display:flex;gap:.625rem;margin-top:.875rem;flex-wrap:wrap">
+            <button id="btn-af-filtrar" class="btn btn-primary btn-sm">🔍 Filtrar</button>
+            <button id="btn-af-limpiar" class="btn btn-secondary btn-sm">✕ Limpiar</button>
+          </div>
         </div>
+
+        <div id="aux-alertas-resumen" style="margin-bottom:1rem"></div>
         <div id="auxiliares-list"
           style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.875rem"></div>
       </section>
@@ -469,8 +496,8 @@
     <button class="nav-item" data-nav="auxiliares">
       <span class="nav-icon">👷</span>Auxiliares
     </button>
-    <button class="nav-item" data-nav="clientes-dashboard">
-      <span class="nav-icon">📊</span>Clientes
+    <button class="nav-item" data-nav="clientes">
+      <span class="nav-icon">🏢</span>Clientes
     </button>
   </nav>
 
