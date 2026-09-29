@@ -231,8 +231,8 @@ const APP = (() => {
     let conductores = [], auxiliares = [], stockHoy = [];
     try {
       [conductores, auxiliares] = await Promise.all([
-        DB_VIAJES.getConductores(false),
-        DB.getAuxiliares(false),
+        DB_VIAJES.getConductores(true),
+        DB.getAuxiliares(true),
       ]);
     } catch (err) {
       UI.setLoading(false);
@@ -1249,8 +1249,8 @@ const APP = (() => {
   async function abrirFormularioMovCliente(clienteId) {
     const [clientes, conductores, auxiliares] = await Promise.all([
       DB_CLIENTES.getClientes(true),
-      DB_VIAJES.getConductores(false),
-      DB.getAuxiliares(false),
+      DB_VIAJES.getConductores(true),
+      DB.getAuxiliares(true),
     ]);
     const cliente     = clientes.find(c => c.id === clienteId);
     const saldoActual = await DB_CLIENTES.getSaldoCliente(clienteId);
@@ -1331,12 +1331,21 @@ const APP = (() => {
     const hidden = document.getElementById(hiddenId);
     if (!input || !list || !hidden) return;
 
+    // Deduplicar elementos para evitar repeticiones visuales
+    const seen = new Set();
+    const cleanItems = items.filter(i => {
+      const key = `${labelFn(i)}||${sublabelFn(i) || ''}`.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     const renderList = (q = '') => {
       const filtered = q
-        ? items.filter(i =>
+        ? cleanItems.filter(i =>
             labelFn(i).toLowerCase().includes(q.toLowerCase()) ||
             (sublabelFn(i) || '').toLowerCase().includes(q.toLowerCase()))
-        : items;
+        : cleanItems;
 
       if (filtered.length === 0) {
         list.innerHTML = `<div class="isl-empty">${q ? `Sin resultados para "${q}"` : 'Sin datos disponibles'}</div>`;
