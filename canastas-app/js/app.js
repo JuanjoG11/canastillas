@@ -655,76 +655,16 @@ const APP = (() => {
     const submitBtn   = document.getElementById('btn-submit-retorno');
 
     function actualizarAlertaRetorno() {
-      const gInput = document.getElementById('ret-grandes');
-      const pInput = document.getElementById('ret-pequenas');
-      const eInput = document.getElementById('ret-estibas');
-      if (!gInput || !pInput || !eInput || !liveAlertEl || !submitBtn) return;
-
-      const gVal = gInput.value.trim();
-      const pVal = pInput.value.trim();
-      const eVal = eInput.value.trim();
-
-      if (gVal === '' && pVal === '' && eVal === '') {
-        liveAlertEl.innerHTML = `
-          <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:var(--radius-sm);padding:.85rem;text-align:center;color:var(--gray-500);font-size:.8125rem">
-            🔒 <strong>Conteo a ciegas activo:</strong> Ingresa las cantidades contadas físicamente en descarga.
-          </div>
-        `;
-        submitBtn.textContent = '✓ Confirmar Retorno';
-        submitBtn.className = 'btn btn-secondary btn-block';
-        return;
-      }
-
-      const retG = parseInt(gVal || '0', 10);
-      const retP = parseInt(pVal || '0', 10);
-      const retE = parseInt(eVal || '0', 10);
-
-      const difG = retG - (viaje.desp_grandes || 0);
-      const difP = retP - (viaje.desp_pequenas || 0);
-      const difE = retE - (viaje.desp_estibas || 0);
-      const difTotal = difG + difP + difE;
-      const hayDiferencia = difG !== 0 || difP !== 0 || difE !== 0;
-
-      if (!hayDiferencia) {
-        liveAlertEl.innerHTML = `
-          <div style="background:#F0FDF4;border:2px solid #22C55E;border-radius:var(--radius-sm);padding:.875rem 1rem;display:flex;align-items:center;gap:.75rem;animation:fadeIn .15s ease">
-            <span style="font-size:1.6rem;line-height:1">✅</span>
-            <div>
-              <div style="font-size:.95rem;font-weight:900;color:#15803D">¡Conteo Exacto!</div>
-              <div style="font-size:.8rem;color:#166534">Coincide 100% con lo despachado.</div>
-            </div>
-          </div>
-        `;
-        submitBtn.textContent = '✓ Confirmar Retorno Exacto';
-        submitBtn.className = 'btn btn-success btn-block';
-      } else {
-        const faltan = difTotal < 0;
-        liveAlertEl.innerHTML = `
-          <div style="background:#FEF2F2;border:2px solid #EF4444;border-radius:var(--radius-sm);padding:1rem;box-shadow:0 4px 12px rgba(239,68,68,.12);animation:fadeIn .15s ease">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;padding-bottom:.5rem;border-bottom:1.5px dashed #FCA5A5">
-              <div style="display:flex;align-items:center;gap:.5rem">
-                <span style="font-size:1.5rem;line-height:1">🚨</span>
-                <div style="font-size:1rem;font-weight:900;color:#991B1B">
-                  ALERTA: Diferencia de ${difTotal > 0 ? '+' : ''}${difTotal}
-                </div>
-              </div>
-              <span style="background:${faltan ? '#DC2626' : '#D97706'};color:#fff;font-size:.72rem;font-weight:900;padding:.25rem .6rem;border-radius:5px;text-transform:uppercase;letter-spacing:.04em">
-                ${faltan ? 'Faltante (' + difTotal + ')' : 'Sobrante (+' + difTotal + ')'}
-              </span>
-            </div>
-            <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem">
-              ${difG !== 0 ? `<span style="background:${difG<0?'#FEE2E2':'#DCFCE7'};color:${difG<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difG<0?'#FCA5A5':'#86EFAC'}">Grandes: ${difG > 0 ? '+' : ''}${difG} ${difG < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
-              ${difP !== 0 ? `<span style="background:${difP<0?'#FEE2E2':'#DCFCE7'};color:${difP<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difP<0?'#FCA5A5':'#86EFAC'}">Pequeñas: ${difP > 0 ? '+' : ''}${difP} ${difP < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
-              ${difE !== 0 ? `<span style="background:${difE<0?'#FEE2E2':'#DCFCE7'};color:${difE<0?'#B91C1C':'#15803D'};font-weight:800;font-size:.82rem;padding:.35rem .65rem;border-radius:6px;border:1px solid ${difE<0?'#FCA5A5':'#86EFAC'}">Estibas: ${difE > 0 ? '+' : ''}${difE} ${difE < 0 ? '(faltan)' : '(sobran)'}</span>` : ''}
-            </div>
-            <div style="font-size:.78rem;color:#7F1D1D;line-height:1.4">
-              ⚠️ <strong>Atención:</strong> El conteo físico no cuadra con el despacho. Revisa el vehículo o confirma para registrar la novedad.
-            </div>
-          </div>
-        `;
-        submitBtn.textContent = `⚠️ Confirmar con Diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`;
-        submitBtn.className = 'btn btn-warning btn-block';
-      }
+      // Conteo a ciegas: nunca se muestra retroalimentación de diferencias durante el retorno.
+      // La discrepancia queda registrada en el historial para revisión posterior.
+      if (!liveAlertEl || !submitBtn) return;
+      liveAlertEl.innerHTML = `
+        <div style="background:var(--gray-50);border:1px dashed var(--gray-300);border-radius:var(--radius-sm);padding:.85rem;text-align:center;color:var(--gray-500);font-size:.8125rem">
+          🔒 <strong>Conteo a ciegas activo:</strong> Ingresa las cantidades contadas físicamente en descarga.
+        </div>
+      `;
+      submitBtn.textContent = '✓ Confirmar Retorno';
+      submitBtn.className = 'btn btn-primary btn-block';
     }
 
     // Spinboxes retorno
@@ -749,69 +689,6 @@ const APP = (() => {
       const retP = parseInt(document.getElementById('ret-pequenas')?.value || '0', 10);
       const retE = parseInt(document.getElementById('ret-estibas')?.value || '0', 10);
 
-      // Calcular diferencias silenciosamente contra lo despachado (SOLO Grandes, Pequeñas, Estibas)
-      const difG = retG - (viaje.desp_grandes || 0);
-      const difP = retP - (viaje.desp_pequenas || 0);
-      const difE = retE - (viaje.desp_estibas || 0);
-      const difTotal = difG + difP + difE;
-      const hayDiferencia = difG !== 0 || difP !== 0 || difE !== 0;
-
-      // Si hay diferencia, avisar silenciosamente al usuario mediante modal premium
-      if (hayDiferencia) {
-        const partes = [];
-        if (difG !== 0) partes.push({ label: 'Grandes', dif: difG });
-        if (difP !== 0) partes.push({ label: 'Pequeñas', dif: difP });
-        if (difE !== 0) partes.push({ label: 'Estibas', dif: difE });
-
-        const modalTitle = `
-          <div style="display:flex;align-items:center;gap:.6rem">
-            <span style="font-size:1.6rem;line-height:1">⚠️</span>
-            <div style="text-align:left">
-              <div style="font-size:1.15rem;font-weight:900;color:var(--gray-900);line-height:1.2">Diferencia en el Retorno</div>
-              <div style="font-size:.78rem;font-weight:600;color:var(--gray-500);margin-top:.15rem">Verificación de descarga a ciegas</div>
-            </div>
-          </div>
-        `;
-
-        const modalBody = `
-          <div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:var(--radius-sm);padding:1rem;margin:.5rem 0 1.25rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px dashed #FCD34D">
-              <span style="font-size:.8rem;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:.05em">Diferencia neta</span>
-              <span style="font-size:1.25rem;font-weight:900;color:${difTotal < 0 ? 'var(--danger)' : 'var(--success)'}">
-                ${difTotal > 0 ? '+' : ''}${difTotal} canastilla${Math.abs(difTotal) !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(${partes.length}, 1fr);gap:.375rem;text-align:center">
-              ${partes.map(p => `
-                <div style="background:${p.dif < 0 ? '#FEE2E2' : p.dif > 0 ? '#DCFCE7' : 'var(--white)'};
-                            border:1px solid ${p.dif < 0 ? '#FECACA' : p.dif > 0 ? '#BBF7D0' : '#E2E8F0'};
-                            border-radius:var(--radius-xs);padding:.45rem .25rem">
-                  <div style="font-size:.65rem;font-weight:800;color:var(--gray-500);text-transform:uppercase">${p.label}</div>
-                  <div style="font-size:1.15rem;font-weight:900;color:${p.dif < 0 ? 'var(--danger)' : p.dif > 0 ? 'var(--success)' : 'var(--gray-700)'}">
-                    ${p.dif > 0 ? '+' : ''}${p.dif}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          <div style="background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-xs);padding:.75rem .9rem;font-size:.84rem;color:var(--gray-600);line-height:1.5">
-            El conteo que ingresaste tiene descuadre con el despacho. Puedes <strong>recontar el vehículo</strong> si consideras que hubo una equivocación, o <strong>confirmar</strong> para dejar registrada la diferencia y pasar a la firma.
-          </div>
-        `;
-
-        const confirmar = await UI.confirmModal({
-          title: modalTitle,
-          body: modalBody,
-          confirmLabel: '✓ Confirmar con diferencia',
-          cancelLabel: '🔍 Recontar material',
-          confirmClass: 'btn btn-warning',
-        });
-
-        if (!confirmar) {
-          return;
-        }
-      }
-
       UI.setLoading(true);
       try {
         const viajeAct = await DB_VIAJES.registrarRetorno(
@@ -831,17 +708,9 @@ const APP = (() => {
         });
         if (firmaUrl) {
           await DB_VIAJES.guardarFirmaRetorno(viajeAct.id, firmaUrl);
-          if (difTotal !== 0) {
-            UI.toast(`⚠️ Retorno registrado y firmado con diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`, 'warning');
-          } else {
-            UI.toast('✓ Retorno registrado y firmado exacto', 'success');
-          }
+          UI.toast('✓ Retorno registrado y firmado', 'success');
         } else {
-          if (difTotal !== 0) {
-            UI.toast(`⚠️ Retorno registrado sin firma con diferencia (${difTotal > 0 ? '+' : ''}${difTotal})`, 'warning');
-          } else {
-            UI.toast('✓ Retorno registrado exacto sin firma', 'success');
-          }
+          UI.toast('✓ Retorno registrado', 'success');
         }
         await navigateTo('retornos');
       } catch (err) {
